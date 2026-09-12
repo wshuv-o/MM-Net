@@ -1,0 +1,37 @@
+# MM-Net — iSLEEPS stroke sleep staging and respiratory-event detection
+#
+# Generated from the imports this repository actually makes, not copied from an
+# older environment file. Verified on Python 3.12.10 with the versions below.
+#
+# Install PyTorch first, with the CUDA build matching your GPU:
+#   https://pytorch.org/get-started/locally/
+# The results in the paper were produced on an RTX 5080 with torch 2.13.0+cu130;
+# a fold takes about 40 seconds there and the ten-fold run about six minutes.
+
+# --- core ------------------------------------------------------------------
+numpy>=2.0                # every module
+scipy>=1.11               # spectrograms, resampling, Wilcoxon, Spearman
+scikit-learn>=1.4         # metrics and the patient-independent splitters
+pandas>=2.0               # annotation tables
+
+# --- deep learning ---------------------------------------------------------
+torch>=2.0                # the model, training, and every reimplemented baseline
+braindecode>=0.8          # the frozen LaBraM encoder
+
+# --- signal reading --------------------------------------------------------
+mne>=1.12                 # EDF reading for the external corpora and spectrograms
+pyedflib>=0.1.30          # EDF reading for the cardiorespiratory channels
+openpyxl>=3.1             # the .xlsx annotation and subject-description files
+
+# --- figures ---------------------------------------------------------------
+matplotlib>=3.8           # all seven figures
+cycler>=0.12              # the shared figure palette
+
+# --- statistics ------------------------------------------------------------
+statsmodels>=0.14         # the covariate models in c5_stats.py
+
+# --- optional --------------------------------------------------------------
+# momentfm                # only for build_cardio_cache.py's MOMENT variant, which
+#                         # is a representation the paper reports against and does
+#                         # not adopt. Skip unless you are reproducing that row.
+# datasets                # HuggingFace loader, used by the same optional path
