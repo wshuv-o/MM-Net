@@ -1,0 +1,1 @@
+{"seed":42,"folds":[{"fold":0,"file":"mmnet_seed42_fold0.pt","acc":0.7275,"kappa":0.6256,"auc":0.7868,"mb":10.6},{"fold":1,"file":"mmnet_seed42_fold1.pt","acc":0.7197,"kappa":0.6126,"auc":0.7639,"mb":10.6},{"fold":2,"file":"mmnet_seed42_fold2.pt","acc":0.7379,"kappa":0.624,"auc":0.7507,"mb":10.6}]}
