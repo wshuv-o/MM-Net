@@ -1,385 +1,138 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MM-Net: Multimodal Multi-Task Sleep Staging and Respiratory-Event Detection in Subacute Ischemic Stroke</title>
-<meta name="description" content="A two-stream multi-task model reading the neural and cardiorespiratory channels of a stroke patient's polysomnogram. Code, checkpoints, per-patient results, and the model running in your browser.">
-<meta property="og:title" content="MM-Net — sleep staging and respiratory events in stroke">
-<meta property="og:description" content="One model, two clinical outputs, from the whole polysomnogram. 99 patients, 92,560 epochs.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Serif:opsz,wght@7..72,400;7..72,600;7..72,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<style>
-/* Colours are the paper's own figure palette (figures/editorial_style.py), so the
-   page and the printed plates agree. Layout follows the academic project-page
-   convention: centred hero, pill links, centred section headings, narrow column. */
-:root{
-  --blue:#1f4e79; --red:#a6212d; --green:#2e7d32; --amber:#c46e0d;
-  --slate:#5b6770; --purple:#6a3d9a;
-  --ink:#1c2530; --ink-2:#4d5a66; --ink-3:#79848f;
-  --ground:#fff; --surface:#fafbfc; --rule:#e3e8ed; --rule-soft:#eef1f4;
-  --accent-sf:#eef3f8; --pill:#363d45; --pill-ink:#fff;
-  --shadow:0 1px 2px rgba(28,37,48,.05), 0 12px 30px -18px rgba(28,37,48,.25);
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --blue:#7fb0dd; --red:#e08a92; --green:#82c785; --amber:#e0a35c;
-    --slate:#9aa7b2; --purple:#b08ed4;
-    --ink:#e4eaf0; --ink-2:#aab6c1; --ink-3:#7e8a95;
-    --ground:#0f1418; --surface:#161d24; --rule:#27313a; --rule-soft:#1e262d;
-    --accent-sf:#13202c; --pill:#e4eaf0; --pill-ink:#0f1418;
-    --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 30px -18px rgba(0,0,0,.75);
-  }
-}
-:root[data-theme="dark"]{
-  --blue:#7fb0dd; --red:#e08a92; --green:#82c785; --amber:#e0a35c;
-  --slate:#9aa7b2; --purple:#b08ed4;
-  --ink:#e4eaf0; --ink-2:#aab6c1; --ink-3:#7e8a95;
-  --ground:#0f1418; --surface:#161d24; --rule:#27313a; --rule-soft:#1e262d;
-  --accent-sf:#13202c; --pill:#e4eaf0; --pill-ink:#0f1418;
-  --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 30px -18px rgba(0,0,0,.75);
-}
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-body{margin:0;background:var(--ground);color:var(--ink);
-  font-family:"Noto Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
-img{max-width:100%}
-canvas{display:block;width:100%;height:auto}
-figure{margin:0}
-code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
-a{color:var(--blue);text-underline-offset:2px}
-a:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+  <meta charset="utf-8">
+  <meta name="description"
+        content="MM-Net: a two-stream multi-task model that stages sleep and detects respiratory events from the polysomnogram of subacute ischemic stroke patients.">
+  <meta name="keywords" content="Sleep Staging, Respiratory Event Detection, Polysomnography, Ischemic Stroke, Multimodal Learning, Multi-Task Learning">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MM-Net: Multimodal Multi-Task Sleep Staging and Respiratory-Event Detection in Subacute Ischemic Stroke</title>
 
-.wrap{max-width:56rem;margin:0 auto;padding:0 1.5rem}
-.narrow{max-width:46rem;margin:0 auto}
-section{padding:3rem 0}
-.sec-rule{border-top:1px solid var(--rule)}
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
 
-/* ---- hero, centred, the project-page convention ---- */
-.hero{text-align:center;padding:4.5rem 0 2.5rem}
-.hero h1{font-family:"Noto Serif",Georgia,serif;font-weight:700;
-  font-size:clamp(1.9rem,4.2vw,2.9rem);line-height:1.18;letter-spacing:-.015em;
-  margin:0 auto;max-width:34rem;text-wrap:balance}
-.venue{font-size:.95rem;color:var(--ink-2);margin:1rem 0 0}
-.authors{margin:1.4rem auto 0;max-width:40rem;font-size:1.02rem;line-height:2}
-.authors a{text-decoration:none}
-.authors a:hover{text-decoration:underline}
-.authors sup{font-size:.72em;color:var(--ink-3)}
-.affil{margin:.55rem auto 0;font-size:.95rem;color:var(--ink-2)}
-.affil sup{font-size:.75em;color:var(--ink-3)}
-
-.links{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin:1.9rem 0 0}
-.pill{display:inline-flex;align-items:center;gap:.5rem;background:var(--pill);color:var(--pill-ink);
-  border:1px solid var(--pill);border-radius:999px;padding:.5rem 1.15rem;font-size:.92rem;
-  font-weight:500;text-decoration:none;transition:opacity .15s}
-.pill:hover{opacity:.82;color:var(--pill-ink)}
-.pill--ghost{background:transparent;color:var(--ink-2);border-color:var(--rule)}
-.pill--ghost:hover{color:var(--blue);border-color:var(--blue)}
-.pill svg{width:1rem;height:1rem;fill:currentColor;flex:none}
-
-/* ---- section headings, centred ---- */
-h2{font-family:"Noto Serif",Georgia,serif;font-weight:600;font-size:1.75rem;
-  text-align:center;margin:0 0 1.4rem;letter-spacing:-.012em;text-wrap:balance}
-h3{font-family:"Noto Sans",sans-serif;font-weight:600;font-size:1rem;margin:0 0 .35rem}
-p{margin:0 0 1rem}
-.justify p{text-align:justify;hyphens:auto}
-.sub{font-size:.9rem;color:var(--ink-3)}
-.center{text-align:center}
-
-/* ---- teaser ---- */
-.teaser{margin-top:.4rem}
-.teaser .cap{text-align:center;max-width:44rem;margin:.9rem auto 0}
-
-/* ---- panels, tables, controls ---- */
-.panel{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:1.4rem;box-shadow:var(--shadow)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.3rem}
-@media(max-width:46rem){.grid2{grid-template-columns:1fr}}
-.scroll{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:32rem}
-th{text-align:left;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);
-  padding:0 .7rem .45rem 0;border-bottom:1px solid var(--rule);white-space:nowrap;cursor:pointer;user-select:none}
-th[data-k]:hover{color:var(--blue)}
-th .ar{opacity:.35;font-size:.7em}
-td{padding:.48rem .7rem .48rem 0;border-bottom:1px solid var(--rule-soft);vertical-align:top}
-td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
-tr.ours td{background:var(--accent-sf);font-weight:600}
-.blk td{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);
-  padding-top:1rem;border-bottom:1px solid var(--rule)}
-.ctl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:center;margin:1.2rem 0}
-select,button.seg{font:inherit;font-size:.88rem;padding:.42rem .7rem;border:1px solid var(--rule);
-  border-radius:4px;background:var(--ground);color:var(--ink);cursor:pointer}
-button.seg[aria-pressed="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
-button.seg:disabled{opacity:.55;cursor:default}
-
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:1px;
-  background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin:2.2rem auto 0}
-.stats div{background:var(--surface);padding:1.05rem 1.15rem;text-align:center}
-.stats .k{font-size:.7rem;letter-spacing:.05em;color:var(--slate);margin:0}
-.stats .v{font-family:"Noto Serif",Georgia,serif;font-size:1.9rem;font-weight:600;line-height:1.05;
-  margin:.2rem 0 0;font-variant-numeric:tabular-nums}
-.stats .s{font-size:.76rem;color:var(--ink-3);margin:.2rem 0 0}
-
-.cap{font-size:.85rem;color:var(--ink-3);margin:.7rem 0 0;line-height:1.6}
-.note{border-left:3px solid var(--blue);background:var(--accent-sf);padding:.9rem 1.15rem;border-radius:0 4px 4px 0;margin:1.3rem 0}
-.note p{margin:0;font-size:.92rem}
-
-pre{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:1.1rem 1.3rem;
-  overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:.82rem;line-height:1.65;margin:0}
-footer{border-top:1px solid var(--rule);padding:2.2rem 0 3.5rem;font-size:.86rem;color:var(--ink-3);text-align:center}
-footer p{max-width:44rem;margin:.5rem auto}
-</style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
 </head>
 <body>
 
-<!-- ============================= hero ============================= -->
-<div class="wrap hero">
-  <h1>Multimodal Multi-Task Sleep Staging and Respiratory-Event Detection in Subacute Ischemic Stroke</h1>
-  <p class="venue">Under review, <em>IEEE Access</em> &middot; 2026</p>
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">Multimodal Multi-Task Sleep Staging and Respiratory-Event Detection in Subacute Ischemic Stroke</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://github.com/wshuv-o">Md Wahiduzzaman Suva</a>,</span>
+            <span class="author-block">
+              Esm-e Moula Chowdhury Abha,</span>
+            <span class="author-block">
+              Md Imtiaj Alam Sajin,</span>
+            <span class="author-block">
+              Md Iftekharul Mobin</span>
+          </div>
 
-  <p class="authors">
-    <a href="https://github.com/wshuv-o">Md Wahiduzzaman Suva</a><sup>1</sup>,
-    Esm-e Moula Chowdhury Abha<sup>1</sup>,
-    Md Imtiaj Alam Sajin<sup>1</sup>,
-    Md Iftekharul Mobin<sup>1</sup>
-  </p>
-  <p class="affil"><sup>1</sup>American International University-Bangladesh, Dhaka</p>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">American International University-Bangladesh</span>
+          </div>
 
-  <div class="links">
-    <a class="pill" href="https://github.com/wshuv-o/MM-Net">
-      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-      Code</a>
-    <a class="pill" href="https://github.com/wshuv-o/MM-Net/releases/tag/v1.0-checkpoints">
-      <svg viewBox="0 0 16 16"><path d="M8 1a1 1 0 0 1 1 1v7.6l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 1.4-1.4L7 9.6V2a1 1 0 0 1 1-1zM2 13a1 1 0 0 1 1 1h10a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1v-1a1 1 0 0 1 0-1z"/></svg>
-      Checkpoints</a>
-    <a class="pill" href="#demo">
-      <svg viewBox="0 0 16 16"><path d="M4 2.5v11a.5.5 0 0 0 .77.42l8.5-5.5a.5.5 0 0 0 0-.84l-8.5-5.5A.5.5 0 0 0 4 2.5z"/></svg>
-      Run it live</a>
-    <a class="pill pill--ghost" href="https://doi.org/10.1038/s41597-026-06747-w">iSLEEPS corpus</a>
-    <span class="pill pill--ghost" title="The manuscript is under review and is not hosted here">Paper &mdash; on acceptance</span>
-  </div>
-
-  <div class="stats narrow" id="stats"></div>
-</div>
-
-<!-- ============================= teaser ============================= -->
-<div class="wrap teaser">
-  <figure class="panel">
-    <canvas id="hypno" height="380" aria-label="Reference and predicted hypnogram with respiratory probability"></canvas>
-    <p class="cap" id="hypnoCap"></p>
-  </figure>
-  <div class="ctl">
-    <button class="seg" id="prevN" aria-label="Previous patient">&#8592;</button>
-    <select id="night"></select>
-    <button class="seg" id="nextN" aria-label="Next patient">&#8594;</button>
-    <span class="sub" id="nightMeta"></span>
-  </div>
-  <p class="cap center" style="max-width:44rem;margin:0 auto">Every one of the 99 held-out nights.
-  The technician&rsquo;s scoring on top, the model&rsquo;s beneath it with disagreeing epochs tinted,
-  and the per-epoch respiratory probability below both. Sorted by accuracy, nothing cherry-picked.</p>
-</div>
-
-<!-- ============================= abstract ============================= -->
-<section class="sec-rule">
-  <div class="wrap narrow justify">
-    <h2>Abstract</h2>
-    <p>Sleep-disordered breathing is common in the weeks after an ischemic stroke and predicts worse
-    recovery, yet automatic sleep analysis reads only the electroencephalogram and reports only sleep
-    stages. A clinical polysomnogram records far more, and in this population the disease is plainly
-    visible in those cardiorespiratory channels: the median patient here has a scored respiratory
-    event in 13% of epochs.</p>
-    <p>We present <strong>MM-Net</strong>, a two-stream multi-task model that reads fourteen neural and
-    cardiorespiratory channels and produces two outputs from one forward pass: the sleep stage of
-    every 30-second epoch, and a per-epoch respiratory-event label. A direct cardiorespiratory path
-    carries breathing effort to the respiratory decision, bypassing the staging objective. On iSLEEPS
-    (99 patients, 92,560 epochs) under patient-independent ten-fold cross-validation, MM-Net stages
-    sleep at 0.739 accuracy (&kappa; 0.634) and detects respiratory events at 0.782 AUC with 2.76 M
-    trainable parameters.</p>
-    <p>We benchmark thirteen deep architectures retrained on this cohort and three applied zero-shot
-    from healthy sleep. Every retrained baseline lands between 0.613 and 0.720 accuracy, and six are
-    reimplemented here, each recovering its published accuracy to within 0.04, which places the limit
-    in the cohort itself.</p>
-    <div class="note">
-      <p><strong>The honest headline is not the staging number.</strong> Neural-only scores 0.741 and
-      the full model 0.739: the cardiorespiratory stream does not improve staging. What it adds is a
-      second clinical output, on a cohort where every architecture we tried sits near the same ceiling.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ============================= ablation ============================= -->
-<section class="sec-rule">
-  <div class="wrap">
-    <h2>Each stream serves its own physiology</h2>
-    <div class="narrow justify">
-      <p>Removing one modality and retraining, nine times over. The pattern is a double dissociation:
-      deleting the neural stream costs staging and leaves breathing intact; deleting the
-      cardiorespiratory stream does the reverse. <em>p</em> is Wilcoxon on ten fold-means,
-      Holm-corrected within each metric.</p>
-    </div>
-    <figure class="panel" style="margin-top:1.4rem">
-      <canvas id="ablation" height="300" aria-label="Modality ablation"></canvas>
-      <p class="cap">Bars are the change from the full model when one modality is removed. Filled bars
-      clear <em>p</em> = 0.05; the floor at this sample size is 0.018.</p>
-    </figure>
-  </div>
-</section>
-
-<!-- ============================= live demo ============================= -->
-<section class="sec-rule" id="demo">
-  <div class="wrap">
-    <h2>Run the model in your browser</h2>
-    <div class="narrow justify">
-      <p>The released checkpoint, executing here, on a patient it never saw during training. Nothing
-      is fetched from a server once the files load: the weights run on your machine and the hypnogram
-      is computed while you watch, then checked against what PyTorch produced for the same patient.</p>
-      <div class="note">
-        <p><strong>What runs and what does not.</strong> Your browser runs MM-Net itself, all 2.76&nbsp;M
-        parameters. It does not run the feature extraction or the frozen LaBraM encoder that produce the
-        388-dimensional neural vector, because LaBraM is far too large to ship to a browser. The inputs
-        are pre-extracted. So this shows the published weights reproducing the published result, not the
-        whole pipeline running client-side.</p>
-      </div>
-    </div>
-    <div class="ctl">
-      <button class="seg" id="runBtn" style="font-weight:600">Load and run &nbsp;&middot;&nbsp; 18 MB</button>
-      <span class="sub" id="runStatus">fold 0 checkpoint &middot; patient SN76 &middot; 678 epochs</span>
-    </div>
-    <figure class="panel" id="livePanel" hidden>
-      <canvas id="live" height="250" aria-label="Hypnogram computed live in the browser"></canvas>
-      <div id="liveStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin-top:1.1rem"></div>
-      <p class="cap" id="liveCap"></p>
-    </figure>
-  </div>
-</section>
-
-<!-- ============================= per-patient ============================= -->
-<section class="sec-rule">
-  <div class="wrap">
-    <h2>Ninety-nine patients, one point each</h2>
-    <div class="narrow justify">
-      <p>Every held-out patient from the ten folds. Staging accuracy against the clinical
-      apnea&ndash;hypopnea index, coloured by AASM severity band. The model was never given the AHI.</p>
-    </div>
-    <div class="ctl">
-      <label class="sub" for="yaxis">Vertical axis</label>
-      <select id="yaxis">
-        <option value="acc">Staging accuracy</option>
-        <option value="kappa">Cohen&rsquo;s &kappa;</option>
-        <option value="burden">Predicted event burden</option>
-      </select>
-      <button class="seg" id="togMontage" aria-pressed="false">Mark incomplete montage</button>
-    </div>
-    <figure class="panel">
-      <canvas id="scatter" height="360" aria-label="Per-patient results against clinical AHI"></canvas>
-      <p class="cap" id="scatterCap"></p>
-    </figure>
-  </div>
-</section>
-
-<!-- ============================= benchmark ============================= -->
-<section class="sec-rule">
-  <div class="wrap">
-    <h2>Thirteen architectures on the same folds</h2>
-    <div class="narrow justify">
-      <p>Every model retrained on this cohort, plus three applied zero-shot from healthy sleep. Click
-      a column to sort. The healthy column is each model&rsquo;s accuracy on healthy sleep under the
-      same protocol, which is what makes the drop legible.</p>
-    </div>
-    <div class="scroll panel" style="margin-top:1.3rem">
-      <table id="bench">
-        <thead><tr>
-          <th data-k="model">Model <span class="ar">&#9662;</span></th>
-          <th data-k="channels">Input</th>
-          <th data-k="params">Params</th>
-          <th data-k="healthy" class="num">Healthy</th>
-          <th data-k="acc" class="num">Accuracy</th>
-          <th data-k="mf1" class="num">Macro-F1</th>
-          <th data-k="kappa" class="num">&kappa;</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<!-- ============================= errors ============================= -->
-<section class="sec-rule">
-  <div class="wrap">
-    <h2>Where the errors are</h2>
-    <div class="grid2">
-      <figure class="panel">
-        <h3>Confusion, row-normalised</h3>
-        <canvas id="confusion" height="260" aria-label="Row-normalised confusion matrix"></canvas>
-        <p class="cap">N1 is the hard class everywhere in sleep staging, and it is harder here.</p>
-      </figure>
-      <div class="panel">
-        <h3>Per-class F1</h3>
-        <div id="f1"></div>
-        <h3 style="margin-top:1.3rem">By breathing severity</h3>
-        <div id="sev"></div>
-        <p class="cap">Accuracy falls as sleep-disordered breathing worsens, which is the cohort
-        getting harder rather than the model failing on a subgroup.</p>
-      </div>
-    </div>
-    <div class="grid2" style="margin-top:1.3rem">
-      <div class="panel">
-        <h3>Respiratory AUC by event type</h3>
-        <div id="etype"></div>
-        <p class="cap">Central and obstructive apneas are detected far better than hypopneas, which
-        is what the physiology predicts: an apnea is a larger, cleaner signal.</p>
-      </div>
-      <div class="panel">
-        <h3>Against clinical AHI</h3>
-        <p class="sub" style="margin:.4rem 0 0">Per-patient predicted burden against the
-        independently measured apnea&ndash;hypopnea index.</p>
-        <p style="font-family:'Noto Serif',serif;font-size:2rem;font-weight:600;margin:.6rem 0 0">
-          &rho; = <span id="rho"></span></p>
-        <p class="sub" id="rhoSub"></p>
-        <div class="note" style="margin-top:1.1rem">
-          <p>A research-grade burden estimate, not a scoring-grade detector. At the 0.5 threshold the
-          model flags about a third of epochs and recovers about half the events. Useful for triage,
-          not for replacing a technician.</p>
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="https://github.com/wshuv-o/MM-Net"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://github.com/wshuv-o/MM-Net/releases/tag/v1.0-checkpoints"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-download"></i>
+                  </span>
+                  <span>Checkpoints</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://doi.org/10.1038/s41597-026-06747-w"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="far fa-chart-bar"></i>
+                  </span>
+                  <span>Data</span>
+                </a>
+              </span>
+            </div>
+            <p class="is-size-7 has-text-grey" style="margin-top:0.75rem">
+              The paper is under review. A link will appear here on acceptance.
+            </p>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============================= checkpoints ============================= -->
-<section class="sec-rule">
-  <div class="wrap">
-    <h2>Checkpoints</h2>
-    <div class="narrow justify">
-      <p>Per-fold weights for the reported configuration, seed 42. Each file carries its own config,
-      the test-subject list for that fold, the scores it achieved, and the parameter count, so a
-      checkpoint can be matched to the row it produced without trusting the filename.</p>
+<section class="hero teaser">
+  <div class="container is-max-desktop">
+    <div class="hero-body">
+      <img src="./static/images/architecture.png" alt="The two-stream, multi-task architecture">
+      <h2 class="subtitle has-text-centered">
+        One model reads the <span class="dnerf">neural</span> and <span class="dnerf">cardiorespiratory</span>
+        channels of a polysomnogram and returns a sleep stage and a respiratory-event label for every
+        30-second epoch.
+      </h2>
     </div>
-    <div class="scroll panel" style="margin-top:1.3rem">
-      <table id="ckpt">
-        <thead><tr><th>File</th><th class="num">Accuracy</th><th class="num">&kappa;</th><th class="num">AUC</th><th class="num">Size</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <p class="cap" id="ckptCap"></p>
-    <div class="narrow">
-      <div class="note">
-        <p><strong>Loading one.</strong> <code>torch.load(path, weights_only=False)</code> gives a dict
-        with <code>state_dict</code>, <code>config</code>, <code>fold</code>, <code>test_subjects</code>
-        and <code>scores</code>. Build the network with <code>MMFeatureNet(**config)</code> from
-        <code>model/mmnet_core.py</code>, swap <code>card_enc</code> for <code>CardioCNN</code>, then
-        load. A checkpoint reproduces its fold to within GPU non-determinism, which is why each stores
-        the scores it actually achieved.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            Sleep-disordered breathing is common in the weeks after an ischemic stroke and predicts
+            worse recovery, yet automatic sleep analysis reads only the electroencephalogram and
+            reports only sleep stages. A clinical polysomnogram records far more, and in this
+            population the disease is plainly visible in those cardiorespiratory channels: the median
+            patient here has a scored respiratory event in 13% of epochs.
+          </p>
+          <p>
+            We present MM-Net, a two-stream multi-task model that reads fourteen neural and
+            cardiorespiratory channels and produces two clinical outputs from a single forward pass,
+            the sleep stage of every 30-second epoch and a per-epoch respiratory-event label, with a
+            direct cardiorespiratory path carrying breathing effort to the respiratory decision,
+            bypassing the staging objective. On iSLEEPS, a stroke-specific polysomnography corpus
+            (99 patients, 92,560 epochs), under patient-independent ten-fold cross-validation, MM-Net
+            stages sleep at 0.739 accuracy (Cohen's &kappa; 0.634) and detects respiratory events at
+            0.782 AUC with 2.76 M trainable parameters.
+          </p>
+          <p>
+            We benchmark thirteen deep architectures retrained on this cohort and three applied
+            zero-shot from healthy sleep; every retrained baseline lands between 0.613 and 0.720
+            accuracy. Six are reimplemented here, each recovering its published accuracy to within
+            0.04, which places the limit in the cohort rather than the implementations.
+            Cross-validated on healthy sleep the same architecture reaches 0.856, losing 0.115
+            crossing into stroke against 0.140 to 0.148 for those baselines. Code, features and
+            checkpoints are released.
+          </p>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============================= bibtex ============================= -->
-<section class="sec-rule" id="bibtex">
-  <div class="wrap narrow">
-    <h2>BibTeX</h2>
+<section class="section" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <h2 class="title">BibTeX</h2>
     <pre><code>@article{suva2026mmnet,
   title   = {Multimodal Multi-Task Sleep Staging and Respiratory-Event
              Detection in Subacute Ischemic Stroke},
@@ -389,19 +142,35 @@ footer p{max-width:44rem;margin:.5rem auto}
   year    = {2026},
   note    = {Under review}
 }</code></pre>
-    <p class="cap">The entry will carry the volume, pages and DOI once the paper is published.</p>
   </div>
 </section>
 
-<footer>
-  <div class="wrap">
-    <p>Every figure on this page is drawn from the result files in the repository, and the benchmark
-    is parsed from the manuscript source, so the page and the paper cannot drift apart.</p>
-    <p>The manuscript is under review and is not hosted here. The iSLEEPS corpus is published
-    separately and is not redistributed.</p>
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <a class="icon-link" href="https://github.com/wshuv-o/MM-Net" class="external-link" disabled>
+        <i class="fab fa-github"></i>
+      </a>
+    </div>
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            This website is licensed under a <a rel="license"
+                                                href="http://creativecommons.org/licenses/by-sa/4.0/">Creative
+            Commons Attribution-ShareAlike 4.0 International License</a>.
+          </p>
+          <p>
+            This page uses the <a href="https://github.com/nerfies/nerfies.github.io">Nerfies</a>
+            project page template by Keunhong Park et al. You are free to borrow its
+            <a href="https://github.com/nerfies/nerfies.github.io">source code</a>, and they ask that
+            you link back to their page in the footer.
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 </footer>
 
-<script src="app.js"></script>
 </body>
 </html>
