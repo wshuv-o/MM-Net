@@ -34,26 +34,20 @@ carries breathing effort to the respiratory head, bypassing the staging objectiv
 ## Layout
 
 ```
-MMNet_research/
-  model/            mmnet_core.py — the network and the ten-fold engine
-  foundation/       the experiments and the reimplemented baselines
-  preprocessing/    EDF and annotation files to the cached feature tensors
-  figures/          the seven figures and the scripts that draw them
-  results/          every result file the paper cites
-HAGNet_research/    three files only: the StagingSeqNet baseline and what it needs
-data/              empty; see "Data" below
+model/          mmnet_core.py, the network and the ten-fold engine
+foundation/     the experiments, the reimplemented baselines and the analyses
+preprocessing/  EDF and annotation files to the cached feature tensors
+figures/        the seven figures and the scripts that draw them
+baselines/      the StagingSeqNet baseline, which carries its own dependencies
+results/        every result file the paper cites
+data/           empty; see "Data" below
 ```
-
-`HAGNet_research/` holds nothing but the StagingSeqNet baseline reported in Table 4
-and the two modules it imports. It is kept under its original path because the
-baseline's own code expects to find it there, and rewriting those paths risked
-changing a reported result.
 
 ---
 
 ## The model
 
-[`MMNet_research/model/mmnet_core.py`](MMNet_research/model/mmnet_core.py) holds
+[`model/mmnet_core.py`](model/mmnet_core.py) holds
 the whole thing: `MMFeatureNet`, `train_fold`, `run_10fold`, and the HMM decoder.
 
 Two details are worth knowing before reading it.
@@ -79,25 +73,25 @@ would be silent and wrong: every rhythm would present at half its frequency.
 pip install -r requirements.txt          # install torch first, see the file
 
 # 1. preprocessing — EDF + annotations to cached tensors
-python MMNet_research/preprocessing/build_multimodal.py
-python MMNet_research/preprocessing/extract_mm_features.py
-python MMNet_research/foundation/build_labram_cache.py
+python preprocessing/build_multimodal.py
+python preprocessing/extract_mm_features.py
+python foundation/build_labram_cache.py
 
 # 2. the headline model, three seeds by ten folds
-python MMNet_research/foundation/run_final_model.py
+python foundation/run_final_model.py
 
 # 3. the experiments the paper reports
-python MMNet_research/foundation/run_ablation_grid.py
-python MMNet_research/foundation/run_bypass_ablation.py
-python MMNet_research/foundation/run_external_validation.py
-python MMNet_research/foundation/run_learning_curve.py
-python MMNet_research/foundation/run_permutation_importance.py
+python foundation/run_ablation_grid.py
+python foundation/run_bypass_ablation.py
+python foundation/run_external_validation.py
+python foundation/run_learning_curve.py
+python foundation/run_permutation_importance.py
 
 # 4. the figures
-python MMNet_research/figures/regen_final_figures.py
+python figures/regen_final_figures.py
 ```
 
-Every script writes into `MMNet_research/results/revision/runs/final/`, and every
+Every script writes into `results/revision/runs/final/`, and every
 file already there was produced by the script of the matching name.
 
 ---
