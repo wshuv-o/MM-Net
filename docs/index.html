@@ -130,6 +130,45 @@
   </div>
 </section>
 
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Run the model</h2>
+        <div class="content has-text-justified">
+          <p>
+            Pick a patient the model never trained on and score their night here. The released
+            fold-0 checkpoint runs in your browser; nothing is sent to a server. The result is
+            compared against what PyTorch produced for the same patient, so the page checks itself.
+          </p>
+          <p class="is-size-7 has-text-grey">
+            Your browser runs MM-Net, all 2.76&nbsp;M parameters. It does not run the feature
+            extraction or the frozen LaBraM encoder that produce the 388-dimensional neural vector,
+            so those inputs are pre-extracted and shipped alongside the weights.
+          </p>
+        </div>
+
+        <div class="field is-grouped is-grouped-centered">
+          <p class="control">
+            <span class="select is-rounded"><select id="demoSubject"></select></span>
+          </p>
+          <p class="control">
+            <button id="demoRun" class="button is-rounded is-dark">
+              <span class="icon"><i class="fas fa-play"></i></span><span>Run</span>
+            </button>
+          </p>
+        </div>
+        <p class="is-size-7 has-text-grey" id="demoStatus">fold 0 checkpoint &middot; 10.6&nbsp;MB model, loaded on first run</p>
+
+        <figure id="demoFigure" hidden style="margin-top:1.5rem">
+          <canvas id="demoCanvas" height="300"></canvas>
+          <div class="columns is-mobile" id="demoStats" style="margin-top:1rem"></div>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="section" id="BibTeX">
   <div class="container is-max-desktop content">
     <h2 class="title">BibTeX</h2>
@@ -172,5 +211,6 @@
   </div>
 </footer>
 
+<script src="./static/js/demo.js"></script>
 </body>
 </html>
