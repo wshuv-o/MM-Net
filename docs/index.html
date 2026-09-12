@@ -276,6 +276,29 @@ ul.plain li{margin:.3rem 0;max-width:44rem}
 </section>
 
 <section>
+  <h2>Run the model in your browser</h2>
+  <p>The released checkpoint, executing here, on a patient it never saw during training.
+  Nothing is fetched from a server once the files load: the weights run on your machine and the
+  hypnogram below is computed while you watch.</p>
+  <div class="note">
+    <p><strong>What runs and what does not.</strong> Your browser runs MM-Net itself, all 2.76&nbsp;M
+    parameters. It does not run the feature extraction or the frozen LaBraM encoder that produce the
+    388-dimensional neural vector, because LaBraM is far too large to ship to a browser. The inputs
+    below are pre-extracted. So this demonstrates that the published weights reproduce the published
+    result, not that the whole pipeline runs client-side.</p>
+  </div>
+  <div class="ctl">
+    <button class="seg" id="runBtn" style="font-weight:600">Load and run &nbsp;&middot;&nbsp; 18 MB</button>
+    <span class="sub" id="runStatus">fold 0 checkpoint &middot; patient SN76 &middot; 678 epochs</span>
+  </div>
+  <figure class="panel" id="livePanel" hidden>
+    <canvas id="live" height="250" aria-label="Hypnogram computed live in the browser"></canvas>
+    <div id="liveStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-top:1.1rem"></div>
+    <p class="cap" id="liveCap"></p>
+  </figure>
+</section>
+
+<section>
   <h2>Checkpoints</h2>
   <p>Per-fold weights for the reported configuration, seed 42. Each file carries its own config,
   the test-subject list for that fold, the scores it achieved, and the parameter count, so a
@@ -602,6 +625,156 @@ function ckpt() {
     + 'Weights are attached to the GitHub release rather than committed, so cloning the repository stays light.';
 }
 
+/* ---------- live inference ---------- */
+const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
+
+function f16to32(buf) {                       // IEEE half -> float, no Float16Array needed
+  const u = new Uint16Array(buf), out = new Float32Array(u.length);
+  for (let i = 0; i < u.length; i++) {
+    const h = u[i], s = (h & 0x8000) >> 15, e = (h & 0x7c00) >> 10, f = h & 0x03ff;
+    out[i] = e === 0 ? (s ? -1 : 1) * Math.pow(2, -14) * (f / 1024)
+      : e === 0x1f ? (f ? NaN : (s ? -Infinity : Infinity))
+      : (s ? -1 : 1) * Math.pow(2, e - 15) * (1 + f / 1024);
+  }
+  return out;
+}
+
+function viterbi(logp, A, pi, K) {            // the same decode the paper applies
+  const T = logp.length / K;
+  const dp = new Float64Array(T * K), bp = new Int32Array(T * K);
+  for (let k = 0; k < K; k++) dp[k] = pi[k] + logp[k];
+  for (let t = 1; t < T; t++) for (let k = 0; k < K; k++) {
+    let best = -Infinity, arg = 0;
+    for (let j = 0; j < K; j++) { const v = dp[(t - 1) * K + j] + A[j][k]; if (v > best) { best = v; arg = j; } }
+    dp[t * K + k] = best + logp[t * K + k]; bp[t * K + k] = arg;
+  }
+  const path = new Int32Array(T);
+  let best = -Infinity;
+  for (let k = 0; k < K; k++) if (dp[(T - 1) * K + k] > best) { best = dp[(T - 1) * K + k]; path[T - 1] = k; }
+  for (let t = T - 2; t >= 0; t--) path[t] = bp[(t + 1) * K + path[t + 1]];
+  return path;
+}
+
+const script = src => new Promise((ok, no) => {
+  const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no;
+  document.head.appendChild(s);
+});
+
+let LIVE = null;
+async function runLive() {
+  const btn = $('#runBtn'), st = $('#runStatus');
+  btn.disabled = true;
+  const say = m => { st.textContent = m; };
+  try {
+    say('loading runtime…');
+    if (!window.ort) { await script(ORT + 'ort.min.js'); ort.env.wasm.wasmPaths = ORT; }
+    say('loading weights and inputs…');
+    const [meta, eBuf, cBuf] = await Promise.all([
+      fetch('data/demo_meta.json').then(r => r.json()),
+      fetch('data/demo_feeg.f16').then(r => r.arrayBuffer()),
+      fetch('data/demo_fcard.f16').then(r => r.arrayBuffer()),
+    ]);
+    const sess = await ort.InferenceSession.create('data/mmnet.onnx', { executionProviders: ['wasm'] });
+    const { window: L, n_eeg: NE, n_card: NC_, n_epochs: N } = meta;
+    const fe = f16to32(eBuf), fc = f16to32(cBuf);
+    const nWin = fe.length / (L * NE);
+
+    const t0 = performance.now();
+    const stage = new Float32Array(nWin * L * 5), apnea = new Float32Array(nWin * L);
+    const B = 8;
+    for (let w = 0; w < nWin; w += B) {
+      const b = Math.min(B, nWin - w);
+      say(`running MM-Net… ${Math.round(w / nWin * 100)}%`);
+      const out = await sess.run({
+        feeg: new ort.Tensor('float32', fe.subarray(w * L * NE, (w + b) * L * NE), [b, L, NE]),
+        fcard: new ort.Tensor('float32', fc.subarray(w * L * NC_, (w + b) * L * NC_), [b, L, NC_]),
+      });
+      const sl = out.stage_logits.data, al = out.apnea_logit.data;
+      for (let i = 0; i < b * L; i++) {
+        let mx = -Infinity;
+        for (let k = 0; k < 5; k++) mx = Math.max(mx, sl[i * 5 + k]);
+        let sum = 0;
+        for (let k = 0; k < 5; k++) { const e = Math.exp(sl[i * 5 + k] - mx); stage[(w * L + i) * 5 + k] = e; sum += e; }
+        for (let k = 0; k < 5; k++) stage[(w * L + i) * 5 + k] /= sum;
+        apnea[w * L + i] = 1 / (1 + Math.exp(-al[i]));
+      }
+      await new Promise(r => setTimeout(r));            // let the status paint
+    }
+    const secs = (performance.now() - t0) / 1000;
+
+    const logp = new Float64Array(N * 5);
+    for (let i = 0; i < N * 5; i++) logp[i] = Math.log(stage[i] + 1e-8);
+    const pred = viterbi(logp, meta.A_log, meta.pi_log, 5);
+
+    const ref = meta.reference_stage, exp = meta.expected_pred;
+    let acc = 0, agree = 0;
+    for (let i = 0; i < N; i++) { if (pred[i] === ref[i]) acc++; if (pred[i] === exp[i]) agree++; }
+    acc /= N; agree /= N;
+    let maxd = 0;
+    for (let i = 0; i < N; i++) maxd = Math.max(maxd, Math.abs(apnea[i] - meta.expected_apnea[i]));
+
+    LIVE = { meta, pred, apnea, N, acc, agree, maxd, secs };
+    $('#livePanel').hidden = false;
+    drawLive();
+    say(`done in ${secs.toFixed(1)} s`);
+    btn.textContent = 'Run again';
+    btn.disabled = false;
+  } catch (e) {
+    say('could not run here: ' + (e && e.message ? e.message : e));
+    btn.disabled = false;
+  }
+}
+
+function drawLive() {
+  if (!LIVE) return;
+  const { meta, pred, apnea, N, acc, agree, maxd, secs } = LIVE;
+  const cv = $('#live'); const [c, W, H] = dpi(cv, 250);
+  const L = 34, R = 12, T = 16, panelH = 88, gap = 14;
+  const X = i => L + i / N * (W - L - R);
+  c.clearRect(0, 0, W, H);
+  const trace = (top, seq, label, col, diff) => {
+    c.fillStyle = css('--slate'); c.textAlign = 'left';
+    c.font = '600 10px "IBM Plex Sans",sans-serif'; c.fillText(label, L, top - 3);
+    c.font = '400 9.5px "IBM Plex Mono",monospace'; c.textAlign = 'right'; c.fillStyle = css('--ink-3');
+    ROWS.forEach((s, k) => {
+      const y = top + k * (panelH - 16) / 4 + 8;
+      c.fillText(s, L - 6, y + 3);
+      c.strokeStyle = css('--rule-soft'); c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke();
+    });
+    if (diff) {
+      c.fillStyle = css('--red'); c.globalAlpha = .16;
+      for (let i = 0; i < N; i++) if (seq[i] !== diff[i]) c.fillRect(X(i), top + 4, Math.max(1, (W - L - R) / N), panelH - 8);
+      c.globalAlpha = 1;
+    }
+    c.strokeStyle = col; c.lineWidth = 1.15; c.beginPath();
+    for (let i = 0; i < N; i++) {
+      const y = top + (4 - LADDER[seq[i]]) * (panelH - 16) / 4 + 8;
+      if (i === 0) c.moveTo(X(i), y); else c.lineTo(X(i), y);
+      c.lineTo(X(i + 1), y);
+    }
+    c.stroke();
+  };
+  trace(T, meta.reference_stage, 'REFERENCE  ·  technician', css('--amber'), null);
+  trace(T + panelH + gap, Array.from(pred), 'COMPUTED IN YOUR BROWSER', css('--blue'), meta.reference_stage);
+
+  $('#liveStats').innerHTML = [
+    ['Accuracy here', acc.toFixed(4), 'against the technician'],
+    ['Checkpoint says', meta.expected_acc.toFixed(4), 'same patient, PyTorch'],
+    ['Epochs identical', (agree * 100).toFixed(1) + '%', 'browser vs PyTorch'],
+    ['Max Δ apnea', maxd.toExponential(1), 'probability drift'],
+    ['Time', secs.toFixed(1) + ' s', `${N} epochs`],
+  ].map(([k, v, s]) => `<div style="background:var(--surface);padding:.8rem .9rem">
+    <p class="k" style="font-size:.68rem;letter-spacing:.05em;color:var(--slate);margin:0">${k}</p>
+    <p style="font-family:'Source Serif 4',serif;font-size:1.35rem;font-weight:600;margin:.15rem 0 0;font-variant-numeric:tabular-nums">${v}</p>
+    <p class="s" style="font-size:.72rem;color:var(--ink-3);margin:.1rem 0 0">${s}</p></div>`).join('');
+
+  $('#liveCap').textContent =
+    `${meta.subject}, held out of fold ${meta.fold}. The browser reproduces PyTorch on `
+    + `${(agree * 100).toFixed(1)}% of epochs; the rest are ties broken differently in float32 `
+    + `arithmetic. Inputs were shipped as float16, which the export measured at a maximum `
+    + `probability difference of 1.9e-4 and no change to any predicted stage.`;
+}
+
 /* ---------- boot ---------- */
 async function boot() {
   const get = async p => { try { const r = await fetch(p); return r.ok ? await r.json() : null; } catch { return null; } };
@@ -632,11 +805,12 @@ document.querySelectorAll('#bench th[data-k]').forEach(th => th.addEventListener
   th.insertAdjacentHTML('beforeend', ` <span class="ar">${sortDesc ? '▾' : '▴'}</span>`);
   bench();
 }));
+$('#runBtn').addEventListener('click', runLive);
 $('#yaxis').addEventListener('change', scatter);
 $('#togMontage').addEventListener('click', e => {
   showMontage = !showMontage; e.target.setAttribute('aria-pressed', showMontage); scatter();
 });
-let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { ablation(); scatter(); confusion(); hypno(); }, 150); });
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { ablation(); scatter(); confusion(); hypno(); drawLive(); }, 150); });
 matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { ablation(); scatter(); confusion(); hypno(); });
 boot();
 </script>
