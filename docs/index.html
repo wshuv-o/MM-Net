@@ -156,6 +156,27 @@ ul.plain li{margin:.3rem 0;max-width:44rem}
 </section>
 
 <section>
+  <h2>One night at a time</h2>
+  <p>Every held-out night the model scored, drawn as a clinician would read it. The top trace is
+  the technician&rsquo;s scoring, the second is the model&rsquo;s, and the band underneath is the
+  per-epoch probability of a respiratory event with the scored events marked along the bottom.
+  Nothing here is cherry-picked: all 99 patients are in the list, sorted by accuracy.</p>
+  <div class="ctl">
+    <button class="seg" id="prevN" aria-label="Previous patient">&#8592;</button>
+    <select id="night"></select>
+    <button class="seg" id="nextN" aria-label="Next patient">&#8594;</button>
+    <span class="sub" id="nightMeta"></span>
+  </div>
+  <figure class="panel">
+    <canvas id="hypno" height="380" aria-label="Reference and predicted hypnogram with respiratory probability"></canvas>
+    <p class="cap" id="hypnoCap"></p>
+  </figure>
+  <p class="sub" style="margin-top:.8rem">Where the two hypnograms disagree the epoch is tinted on
+  the predicted trace. The disagreements cluster in N1 and at stage transitions, which is where
+  human scorers disagree with each other too.</p>
+</section>
+
+<section>
   <h2>Each stream serves its own physiology</h2>
   <p>Removing one modality and retraining, nine times over. The pattern is a double dissociation:
   deleting the neural stream costs staging and leaves breathing intact; deleting the
@@ -354,6 +375,103 @@ function ablation() {
   });
 }
 
+/* ---------- one night ---------- */
+let NIGHTS = {}, nightIds = [], nightAt = 0;
+const STAGES = ['W', 'N1', 'N2', 'N3', 'R'];
+const LADDER = { 0: 4, 1: 2, 2: 1, 3: 0, 4: 3 };          // W top, N3 bottom, R above N3
+const ROWS = ['N3', 'N2', 'N1', 'R', 'W'];
+
+function hypno() {
+  const id = nightIds[nightAt];
+  const n = NIGHTS[id];
+  if (!n) return;
+  const cv = $('#hypno'); const [c, W, H] = dpi(cv, 380);
+  const L = 34, R = 12, T = 16, gap = 14;
+  const nEp = n.ref.length, hours = nEp * 30 / 3600;
+  const panelH = 96, apH = 74;
+  const X = i => L + i / nEp * (W - L - R);
+  const rowY = (top, s) => top + (4 - LADDER[s]) * (panelH - 16) / 4 + 8;
+
+  c.clearRect(0, 0, W, H);
+  c.font = '400 9.5px "IBM Plex Mono",monospace';
+
+  function trace(top, seq, label, col, diffAgainst) {
+    c.fillStyle = css('--slate'); c.textAlign = 'left';
+    c.font = '600 10px "IBM Plex Sans",sans-serif';
+    c.fillText(label, L, top - 3);
+    c.font = '400 9.5px "IBM Plex Mono",monospace';
+    c.textAlign = 'right'; c.fillStyle = css('--ink-3');
+    ROWS.forEach((s, k) => {
+      const y = top + k * (panelH - 16) / 4 + 8;
+      c.fillText(s, L - 6, y + 3);
+      c.strokeStyle = css('--rule-soft'); c.lineWidth = 1;
+      c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke();
+    });
+    if (diffAgainst) {                                   // tint the disagreements
+      c.fillStyle = css('--red'); c.globalAlpha = .16;
+      for (let i = 0; i < nEp; i++) if (seq[i] !== diffAgainst[i]) c.fillRect(X(i), top + 4, Math.max(1, (W - L - R) / nEp), panelH - 8);
+      c.globalAlpha = 1;
+    }
+    c.strokeStyle = col; c.lineWidth = 1.15; c.beginPath();
+    for (let i = 0; i < nEp; i++) {
+      const y = rowY(top, seq[i]), x = X(i), x2 = X(i + 1);
+      if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      c.lineTo(x2, y);
+    }
+    c.stroke();
+    c.strokeStyle = css('--purple'); c.lineWidth = 2; c.beginPath();   // REM highlighted
+    let open = false;
+    for (let i = 0; i < nEp; i++) {
+      if (seq[i] === 4) { const y = rowY(top, 4); if (!open) { c.moveTo(X(i), y); open = true; } c.lineTo(X(i + 1), y); }
+      else open = false;
+    }
+    c.stroke();
+  }
+
+  trace(T, n.ref, 'REFERENCE  ·  technician', css('--amber'), null);
+  trace(T + panelH + gap, n.pred, 'PREDICTED  ·  MM-Net', css('--blue'), n.ref);
+
+  // respiratory probability
+  const top = T + 2 * (panelH + gap);
+  c.fillStyle = css('--slate'); c.textAlign = 'left';
+  c.font = '600 10px "IBM Plex Sans",sans-serif';
+  c.fillText('RESPIRATORY EVENT PROBABILITY', L, top - 3);
+  c.strokeStyle = css('--rule-soft'); c.beginPath();
+  c.moveTo(L, top + apH - 14); c.lineTo(W - R, top + apH - 14); c.stroke();
+  c.fillStyle = css('--green'); c.globalAlpha = .5; c.beginPath();
+  c.moveTo(L, top + apH - 14);
+  for (let i = 0; i < nEp; i++) c.lineTo(X(i), top + apH - 14 - n.apnea[i] * (apH - 22));
+  c.lineTo(W - R, top + apH - 14); c.closePath(); c.fill(); c.globalAlpha = 1;
+  c.fillStyle = css('--red');                                  // scored events
+  for (let i = 0; i < nEp; i++) if (n.apnea_true[i]) c.fillRect(X(i), top + apH - 11, Math.max(1, (W - L - R) / nEp), 6);
+  c.fillStyle = css('--ink-3'); c.font = '400 9.5px "IBM Plex Mono",monospace';
+  c.textAlign = 'right'; c.fillText('1.0', L - 6, top + 8);
+  c.fillText('0', L - 6, top + apH - 11);
+  c.textAlign = 'left'; c.fillText('scored events', L, top + apH + 10);
+
+  // hours axis
+  c.textAlign = 'center'; c.fillStyle = css('--ink-3');
+  for (let h = 0; h <= Math.floor(hours); h += 2) c.fillText(h + 'h', X(h * 120), H - 4);
+
+  const ev = n.apnea_true.reduce((a, b) => a + b, 0);
+  $('#hypnoCap').textContent =
+    `${id} · ${nEp} epochs (${hours.toFixed(1)} h) · staging accuracy ${n.acc.toFixed(3)}, ` +
+    `κ ${n.kappa.toFixed(3)} · ${ev} epochs carry a scored respiratory event ` +
+    `(${(ev / nEp * 100).toFixed(0)}% of the night).`;
+  $('#nightMeta').textContent = `${nightAt + 1} of ${nightIds.length}`;
+}
+
+function nightSetup() {
+  nightIds = Object.keys(NIGHTS).sort((a, b) => NIGHTS[b].acc - NIGHTS[a].acc);
+  $('#night').innerHTML = nightIds.map((id, i) =>
+    `<option value="${i}">${id} — accuracy ${NIGHTS[id].acc.toFixed(3)}</option>`).join('');
+  const go = d => { nightAt = (nightAt + d + nightIds.length) % nightIds.length; $('#night').value = nightAt; hypno(); };
+  $('#prevN').onclick = () => go(-1);
+  $('#nextN').onclick = () => go(1);
+  $('#night').onchange = e => { nightAt = +e.target.value; hypno(); };
+  hypno();
+}
+
 /* ---------- per-patient scatter ---------- */
 const SEV_COL = { Normal: '--green', Mild: '--blue', Moderate: '--amber', Severe: '--red' };
 let showMontage = false;
@@ -490,6 +608,7 @@ async function boot() {
   DATA = await get('data/results.json') || {};
   PATIENTS = await get('data/patients.json') || [];
   BENCH = await get('data/benchmark.json') || [];
+  NIGHTS = await get('data/nights.json') || {};
   const man = await get('data/checkpoints.json');
   CKPT = man && man.folds ? man.folds : [];
 
@@ -497,6 +616,7 @@ async function boot() {
     '<div class="wrap"><div class="note"><p>Result files did not load. If you are viewing this file directly from disk, serve the folder over HTTP instead: <code>python -m http.server</code>.</p></div></div>'); return; }
 
   stats(); ablation(); scatter(); bench(); confusion(); ckpt();
+  if (Object.keys(NIGHTS).length) nightSetup();
   bars($('#f1'), Object.entries(DATA.per_class_f1).map(([k, v]) => [k, v, ` (${(DATA.support[k] / 1000).toFixed(1)}k)`]), 'blue', v => v.toFixed(3));
   bars($('#sev'), Object.entries(DATA.severity).map(([k, v]) => [k, v.acc, ` (n=${v.n})`]), 'amber', v => v.toFixed(3));
   bars($('#etype'), Object.entries(DATA.event_type).filter(([, v]) => v.n_positive > 200)
@@ -516,8 +636,8 @@ $('#yaxis').addEventListener('change', scatter);
 $('#togMontage').addEventListener('click', e => {
   showMontage = !showMontage; e.target.setAttribute('aria-pressed', showMontage); scatter();
 });
-let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { ablation(); scatter(); confusion(); }, 150); });
-matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { ablation(); scatter(); confusion(); });
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { ablation(); scatter(); confusion(); hypno(); }, 150); });
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { ablation(); scatter(); confusion(); hypno(); });
 boot();
 </script>
 </body>
