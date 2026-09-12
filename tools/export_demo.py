@@ -27,7 +27,7 @@ import cardio_cnn               # noqa: E402
 OUT = r'D:\proc\mmnet-isleeps\docs\static\demo'
 CKPT = os.path.join(REPO, 'MMNet_research', 'results', 'checkpoints', 'mmnet_seed42_fold0.pt')
 L = 20
-N_SUBJECTS = 4
+N_SUBJECTS = 10          # every patient fold 0 held out
 
 os.makedirs(OUT, exist_ok=True)
 ck = torch.load(CKPT, map_location='cpu', weights_only=False)
@@ -83,6 +83,7 @@ with sweep.config(C, cfg['arm'], hidden=cfg['hidden'], drop=cfg['drop'], lr=cfg[
 
     # ---- the lightest held-out patients ---------------------------------
     cand = sorted(ck['test_subjects'], key=lambda s: len(C.DATA[s][2]))[:N_SUBJECTS]
+    print('  scoring every patient fold %d held out, so none was seen in training' % ck['fold'])
     index = {'fold': int(ck['fold']), 'window': L, 'n_eeg': int(h.dim), 'n_card': int(h.n_card),
              'A_log': A_log.tolist(), 'pi_log': pi_log.tolist(),
              'params': int(n_par), 'subjects': []}

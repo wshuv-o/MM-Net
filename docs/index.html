@@ -137,9 +137,10 @@
         <h2 class="title is-3">Run the model</h2>
         <div class="content has-text-justified">
           <p>
-            Pick a patient the model never trained on and score their night here. The released
-            fold-0 checkpoint runs in your browser; nothing is sent to a server. The result is
-            compared against what PyTorch produced for the same patient, so the page checks itself.
+            Pick a patient and score their night here. All ten are the patients fold 0 held out,
+            so none was seen during training. The released fold-0 checkpoint runs in your browser;
+            nothing is sent to a server. The result is compared against what PyTorch produced for
+            the same patient, so the page checks itself.
           </p>
           <p class="is-size-7 has-text-grey">
             Your browser runs MM-Net, all 2.76&nbsp;M parameters. It does not run the feature
