@@ -3,89 +3,99 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MM-Net — sleep staging and respiratory events in stroke</title>
-<meta name="description" content="A two-stream multi-task model reading the neural and cardiorespiratory channels of a stroke patient's polysomnogram. Code, checkpoints and per-patient results.">
+<title>MM-Net: Multimodal Multi-Task Sleep Staging and Respiratory-Event Detection in Subacute Ischemic Stroke</title>
+<meta name="description" content="A two-stream multi-task model reading the neural and cardiorespiratory channels of a stroke patient's polysomnogram. Code, checkpoints, per-patient results, and the model running in your browser.">
+<meta property="og:title" content="MM-Net — sleep staging and respiratory events in stroke">
+<meta property="og:description" content="One model, two clinical outputs, from the whole polysomnogram. 99 patients, 92,560 epochs.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Serif:opsz,wght@7..72,400;7..72,600;7..72,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Palette taken from the paper's own figure style (figures/editorial_style.py),
-   so the page and the plates in the manuscript share one set of colours. */
+/* Colours are the paper's own figure palette (figures/editorial_style.py), so the
+   page and the printed plates agree. Layout follows the academic project-page
+   convention: centred hero, pill links, centred section headings, narrow column. */
 :root{
   --blue:#1f4e79; --red:#a6212d; --green:#2e7d32; --amber:#c46e0d;
   --slate:#5b6770; --purple:#6a3d9a;
-  --ink:#18212a; --ink-2:#4a5762; --ink-3:#76828d;
-  --ground:#f4f6f8; --surface:#fff; --rule:#dbe1e7; --rule-soft:#eaeef2;
-  --accent-sf:#e9eff5;
-  --shadow:0 1px 2px rgba(24,33,42,.06), 0 10px 28px -16px rgba(24,33,42,.22);
+  --ink:#1c2530; --ink-2:#4d5a66; --ink-3:#79848f;
+  --ground:#fff; --surface:#fafbfc; --rule:#e3e8ed; --rule-soft:#eef1f4;
+  --accent-sf:#eef3f8; --pill:#363d45; --pill-ink:#fff;
+  --shadow:0 1px 2px rgba(28,37,48,.05), 0 12px 30px -18px rgba(28,37,48,.25);
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --blue:#7fb0dd; --red:#e08a92; --green:#82c785; --amber:#e0a35c;
     --slate:#9aa7b2; --purple:#b08ed4;
-    --ink:#e3e9ef; --ink-2:#a9b5c0; --ink-3:#7d8993;
-    --ground:#10151a; --surface:#171e25; --rule:#28323b; --rule-soft:#202931;
-    --accent-sf:#14212e;
-    --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px -16px rgba(0,0,0,.7);
+    --ink:#e4eaf0; --ink-2:#aab6c1; --ink-3:#7e8a95;
+    --ground:#0f1418; --surface:#161d24; --rule:#27313a; --rule-soft:#1e262d;
+    --accent-sf:#13202c; --pill:#e4eaf0; --pill-ink:#0f1418;
+    --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 30px -18px rgba(0,0,0,.75);
   }
 }
 :root[data-theme="dark"]{
   --blue:#7fb0dd; --red:#e08a92; --green:#82c785; --amber:#e0a35c;
   --slate:#9aa7b2; --purple:#b08ed4;
-  --ink:#e3e9ef; --ink-2:#a9b5c0; --ink-3:#7d8993;
-  --ground:#10151a; --surface:#171e25; --rule:#28323b; --rule-soft:#202931;
-  --accent-sf:#14212e;
-  --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px -16px rgba(0,0,0,.7);
+  --ink:#e4eaf0; --ink-2:#aab6c1; --ink-3:#7e8a95;
+  --ground:#0f1418; --surface:#161d24; --rule:#27313a; --rule-soft:#1e262d;
+  --accent-sf:#13202c; --pill:#e4eaf0; --pill-ink:#0f1418;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 30px -18px rgba(0,0,0,.75);
 }
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{
-  margin:0;background:var(--ground);color:var(--ink);
-  font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-size:15px;line-height:1.62;-webkit-font-smoothing:antialiased;
-}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Noto Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
 img{max-width:100%}
-.wrap{max-width:62rem;margin:0 auto;padding:0 1.5rem}
-section{padding:3.25rem 0;border-top:1px solid var(--rule)}
-section:first-of-type{border-top:0}
-
-h1,h2,h3{font-family:"Source Serif 4",Georgia,serif;letter-spacing:-.015em;text-wrap:balance;margin:0}
-h1{font-size:clamp(2.1rem,5.2vw,3.2rem);line-height:1.1;font-weight:700}
-h2{font-size:1.6rem;font-weight:600;margin-bottom:.35rem}
-h3{font-size:1.05rem;font-weight:600;margin-bottom:.3rem}
-p{margin:.7rem 0;max-width:44rem}
-a{color:var(--blue);text-underline-offset:2px}
-a:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+canvas{display:block;width:100%;height:auto}
+figure{margin:0}
 code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
-.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--slate);margin:0 0 .9rem}
-.lede{font-family:"Source Serif 4",Georgia,serif;font-size:1.2rem;line-height:1.55;color:var(--ink-2);max-width:42rem}
-.sub{font-size:.88rem;color:var(--ink-3)}
+a{color:var(--blue);text-underline-offset:2px}
+a:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
 
-/* hero */
-header{padding:4rem 0 0}
-.badges{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.6rem 0 0}
-.badge{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .8rem;border:1px solid var(--rule);
-  border-radius:3px;background:var(--surface);font-size:.85rem;font-weight:500;text-decoration:none;color:var(--ink)}
-.badge:hover{border-color:var(--blue);color:var(--blue)}
-.badge--solid{background:var(--blue);border-color:var(--blue);color:#fff}
-.badge--solid:hover{color:#fff;opacity:.9}
+.wrap{max-width:56rem;margin:0 auto;padding:0 1.5rem}
+.narrow{max-width:46rem;margin:0 auto}
+section{padding:3rem 0}
+.sec-rule{border-top:1px solid var(--rule)}
 
-/* headline numbers */
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:1px;
-  background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-top:2rem}
-.stats div{background:var(--surface);padding:1.05rem 1.15rem}
-.stats .k{font-size:.7rem;letter-spacing:.05em;color:var(--slate);margin:0}
-.stats .v{font-family:"Source Serif 4",Georgia,serif;font-size:1.95rem;font-weight:600;line-height:1.05;
-  margin:.2rem 0 0;font-variant-numeric:tabular-nums}
-.stats .s{font-size:.76rem;color:var(--ink-3);margin:.2rem 0 0}
+/* ---- hero, centred, the project-page convention ---- */
+.hero{text-align:center;padding:4.5rem 0 2.5rem}
+.hero h1{font-family:"Noto Serif",Georgia,serif;font-weight:700;
+  font-size:clamp(1.9rem,4.2vw,2.9rem);line-height:1.18;letter-spacing:-.015em;
+  margin:0 auto;max-width:34rem;text-wrap:balance}
+.venue{font-size:.95rem;color:var(--ink-2);margin:1rem 0 0}
+.authors{margin:1.4rem auto 0;max-width:40rem;font-size:1.02rem;line-height:2}
+.authors a{text-decoration:none}
+.authors a:hover{text-decoration:underline}
+.authors sup{font-size:.72em;color:var(--ink-3)}
+.affil{margin:.55rem auto 0;font-size:.95rem;color:var(--ink-2)}
+.affil sup{font-size:.75em;color:var(--ink-3)}
 
-/* generic panel */
-.panel{background:var(--surface);border:1px solid var(--rule);border-radius:3px;padding:1.4rem;box-shadow:var(--shadow)}
+.links{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin:1.9rem 0 0}
+.pill{display:inline-flex;align-items:center;gap:.5rem;background:var(--pill);color:var(--pill-ink);
+  border:1px solid var(--pill);border-radius:999px;padding:.5rem 1.15rem;font-size:.92rem;
+  font-weight:500;text-decoration:none;transition:opacity .15s}
+.pill:hover{opacity:.82;color:var(--pill-ink)}
+.pill--ghost{background:transparent;color:var(--ink-2);border-color:var(--rule)}
+.pill--ghost:hover{color:var(--blue);border-color:var(--blue)}
+.pill svg{width:1rem;height:1rem;fill:currentColor;flex:none}
+
+/* ---- section headings, centred ---- */
+h2{font-family:"Noto Serif",Georgia,serif;font-weight:600;font-size:1.75rem;
+  text-align:center;margin:0 0 1.4rem;letter-spacing:-.012em;text-wrap:balance}
+h3{font-family:"Noto Sans",sans-serif;font-weight:600;font-size:1rem;margin:0 0 .35rem}
+p{margin:0 0 1rem}
+.justify p{text-align:justify;hyphens:auto}
+.sub{font-size:.9rem;color:var(--ink-3)}
+.center{text-align:center}
+
+/* ---- teaser ---- */
+.teaser{margin-top:.4rem}
+.teaser .cap{text-align:center;max-width:44rem;margin:.9rem auto 0}
+
+/* ---- panels, tables, controls ---- */
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:1.4rem;box-shadow:var(--shadow)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.3rem}
 @media(max-width:46rem){.grid2{grid-template-columns:1fr}}
-
-/* tables */
 .scroll{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:32rem}
 th{text-align:left;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);
@@ -97,722 +107,301 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 tr.ours td{background:var(--accent-sf);font-weight:600}
 .blk td{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);
   padding-top:1rem;border-bottom:1px solid var(--rule)}
-
-/* controls */
-.ctl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:1rem 0}
-select,button.seg{font:inherit;font-size:.85rem;padding:.4rem .65rem;border:1px solid var(--rule);
-  border-radius:3px;background:var(--surface);color:var(--ink);cursor:pointer}
+.ctl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:center;margin:1.2rem 0}
+select,button.seg{font:inherit;font-size:.88rem;padding:.42rem .7rem;border:1px solid var(--rule);
+  border-radius:4px;background:var(--ground);color:var(--ink);cursor:pointer}
 button.seg[aria-pressed="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
+button.seg:disabled{opacity:.55;cursor:default}
 
-/* chips */
-.chip{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.63rem;letter-spacing:.07em;
-  text-transform:uppercase;padding:.16em .45em;border:1px solid currentColor;border-radius:2px;white-space:nowrap}
-.c-ok{color:var(--green)} .c-no{color:var(--ink-3)} .c-hi{color:var(--red)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin:2.2rem auto 0}
+.stats div{background:var(--surface);padding:1.05rem 1.15rem;text-align:center}
+.stats .k{font-size:.7rem;letter-spacing:.05em;color:var(--slate);margin:0}
+.stats .v{font-family:"Noto Serif",Georgia,serif;font-size:1.9rem;font-weight:600;line-height:1.05;
+  margin:.2rem 0 0;font-variant-numeric:tabular-nums}
+.stats .s{font-size:.76rem;color:var(--ink-3);margin:.2rem 0 0}
 
-figure{margin:0}
-canvas{display:block;width:100%;height:auto}
-.cap{font-size:.82rem;color:var(--ink-3);margin:.6rem 0 0;max-width:42rem}
+.cap{font-size:.85rem;color:var(--ink-3);margin:.7rem 0 0;line-height:1.6}
+.note{border-left:3px solid var(--blue);background:var(--accent-sf);padding:.9rem 1.15rem;border-radius:0 4px 4px 0;margin:1.3rem 0}
+.note p{margin:0;font-size:.92rem}
 
-footer{border-top:1px solid var(--rule);padding:2rem 0 3.5rem;font-size:.85rem;color:var(--ink-3)}
-.note{border-left:3px solid var(--blue);background:var(--accent-sf);padding:.85rem 1.1rem;border-radius:0 2px 2px 0;margin:1.2rem 0}
-.note p{margin:0;font-size:.9rem;max-width:46rem}
-ul.plain{margin:.6rem 0;padding-left:1.1rem}
-ul.plain li{margin:.3rem 0;max-width:44rem}
+pre{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:1.1rem 1.3rem;
+  overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:.82rem;line-height:1.65;margin:0}
+footer{border-top:1px solid var(--rule);padding:2.2rem 0 3.5rem;font-size:.86rem;color:var(--ink-3);text-align:center}
+footer p{max-width:44rem;margin:.5rem auto}
 </style>
 </head>
 <body>
 
-<div class="wrap">
-<header>
-  <p class="eyebrow">IEEE Access &middot; under review</p>
-  <h1>Reading the whole sleeping body</h1>
-  <p class="lede">A two-stream multi-task model that stages sleep <em>and</em> detects respiratory
-  events from one pass over a stroke patient&rsquo;s polysomnogram. Trained and evaluated on
-  iSLEEPS: 99 patients, 92,560 epochs, patient-independent ten-fold cross-validation.</p>
-  <div class="badges">
-    <a class="badge badge--solid" href="https://github.com/wshuv-o/MM-Net/releases" id="ckptLink">Download checkpoints</a>
-    <a class="badge" href="https://github.com/wshuv-o/MM-Net">Code on GitHub</a>
-    <a class="badge" href="https://doi.org/10.1038/s41597-026-06747-w">iSLEEPS corpus</a>
+<!-- ============================= hero ============================= -->
+<div class="wrap hero">
+  <h1>Multimodal Multi-Task Sleep Staging and Respiratory-Event Detection in Subacute Ischemic Stroke</h1>
+  <p class="venue">Under review, <em>IEEE Access</em> &middot; 2026</p>
+
+  <p class="authors">
+    <a href="https://github.com/wshuv-o">Md Wahiduzzaman Suva</a><sup>1</sup>,
+    Esm-e Moula Chowdhury Abha<sup>1</sup>,
+    Md Imtiaj Alam Sajin<sup>1</sup>,
+    Md Iftekharul Mobin<sup>1</sup>
+  </p>
+  <p class="affil"><sup>1</sup>American International University-Bangladesh, Dhaka</p>
+
+  <div class="links">
+    <a class="pill" href="https://github.com/wshuv-o/MM-Net">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      Code</a>
+    <a class="pill" href="https://github.com/wshuv-o/MM-Net/releases/tag/v1.0-checkpoints">
+      <svg viewBox="0 0 16 16"><path d="M8 1a1 1 0 0 1 1 1v7.6l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 1.4-1.4L7 9.6V2a1 1 0 0 1 1-1zM2 13a1 1 0 0 1 1 1h10a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1v-1a1 1 0 0 1 0-1z"/></svg>
+      Checkpoints</a>
+    <a class="pill" href="#demo">
+      <svg viewBox="0 0 16 16"><path d="M4 2.5v11a.5.5 0 0 0 .77.42l8.5-5.5a.5.5 0 0 0 0-.84l-8.5-5.5A.5.5 0 0 0 4 2.5z"/></svg>
+      Run it live</a>
+    <a class="pill pill--ghost" href="https://doi.org/10.1038/s41597-026-06747-w">iSLEEPS corpus</a>
+    <span class="pill pill--ghost" title="The manuscript is under review and is not hosted here">Paper &mdash; on acceptance</span>
   </div>
 
-  <div class="stats" id="stats"></div>
-</header>
+  <div class="stats narrow" id="stats"></div>
+</div>
 
-<section>
-  <h2>What the model is for</h2>
-  <p>Automatic sleep analysis reads the electroencephalogram and reports sleep stages. A clinical
-  polysomnogram records far more, and after a stroke those cardiorespiratory channels carry the
-  sleep-disordered breathing that predicts recovery: the median patient here has a scored
-  respiratory event in 13% of epochs.</p>
-  <p>MM-Net reads fourteen neural and cardiorespiratory channels and produces two clinical outputs
-  from a single forward pass, with a direct cardiorespiratory path carrying breathing effort to the
-  respiratory decision so the staging objective cannot squeeze it out.</p>
-  <div class="note">
-    <p><strong>The honest headline is not the staging number.</strong> Neural-only scores 0.741 and the
-    full model 0.739: adding the cardiorespiratory stream does not improve staging. What it adds is a
-    second clinical output at 0.782 AUC, for free, on a cohort where every architecture we tried sits
-    near the same ceiling.</p>
-  </div>
-</section>
-
-<section>
-  <h2>One night at a time</h2>
-  <p>Every held-out night the model scored, drawn as a clinician would read it. The top trace is
-  the technician&rsquo;s scoring, the second is the model&rsquo;s, and the band underneath is the
-  per-epoch probability of a respiratory event with the scored events marked along the bottom.
-  Nothing here is cherry-picked: all 99 patients are in the list, sorted by accuracy.</p>
+<!-- ============================= teaser ============================= -->
+<div class="wrap teaser">
+  <figure class="panel">
+    <canvas id="hypno" height="380" aria-label="Reference and predicted hypnogram with respiratory probability"></canvas>
+    <p class="cap" id="hypnoCap"></p>
+  </figure>
   <div class="ctl">
     <button class="seg" id="prevN" aria-label="Previous patient">&#8592;</button>
     <select id="night"></select>
     <button class="seg" id="nextN" aria-label="Next patient">&#8594;</button>
     <span class="sub" id="nightMeta"></span>
   </div>
-  <figure class="panel">
-    <canvas id="hypno" height="380" aria-label="Reference and predicted hypnogram with respiratory probability"></canvas>
-    <p class="cap" id="hypnoCap"></p>
-  </figure>
-  <p class="sub" style="margin-top:.8rem">Where the two hypnograms disagree the epoch is tinted on
-  the predicted trace. The disagreements cluster in N1 and at stage transitions, which is where
-  human scorers disagree with each other too.</p>
-</section>
+  <p class="cap center" style="max-width:44rem;margin:0 auto">Every one of the 99 held-out nights.
+  The technician&rsquo;s scoring on top, the model&rsquo;s beneath it with disagreeing epochs tinted,
+  and the per-epoch respiratory probability below both. Sorted by accuracy, nothing cherry-picked.</p>
+</div>
 
-<section>
-  <h2>Each stream serves its own physiology</h2>
-  <p>Removing one modality and retraining, nine times over. The pattern is a double dissociation:
-  deleting the neural stream costs staging and leaves breathing intact; deleting the
-  cardiorespiratory stream does the reverse. <em>p</em> is Wilcoxon on ten fold-means, Holm-corrected
-  within each metric.</p>
-  <figure class="panel">
-    <canvas id="ablation" height="300" aria-label="Modality ablation: change in staging accuracy and respiratory AUC"></canvas>
-    <p class="cap">Bars are the change from the full model when one modality is removed. Filled bars
-    clear <em>p</em> = 0.05; the floor at this sample size is 0.018.</p>
-  </figure>
-</section>
-
-<section>
-  <h2>Ninety-nine patients, one point each</h2>
-  <p>Every held-out patient from the ten folds. Staging accuracy against the clinical
-  apnea&ndash;hypopnea index, coloured by AASM severity band. The model was never given the AHI.</p>
-  <div class="ctl">
-    <label class="sub" for="yaxis">Vertical axis</label>
-    <select id="yaxis">
-      <option value="acc">Staging accuracy</option>
-      <option value="kappa">Cohen&rsquo;s &kappa;</option>
-      <option value="burden">Predicted event burden</option>
-    </select>
-    <button class="seg" id="togMontage" aria-pressed="false">Mark incomplete montage</button>
+<!-- ============================= abstract ============================= -->
+<section class="sec-rule">
+  <div class="wrap narrow justify">
+    <h2>Abstract</h2>
+    <p>Sleep-disordered breathing is common in the weeks after an ischemic stroke and predicts worse
+    recovery, yet automatic sleep analysis reads only the electroencephalogram and reports only sleep
+    stages. A clinical polysomnogram records far more, and in this population the disease is plainly
+    visible in those cardiorespiratory channels: the median patient here has a scored respiratory
+    event in 13% of epochs.</p>
+    <p>We present <strong>MM-Net</strong>, a two-stream multi-task model that reads fourteen neural and
+    cardiorespiratory channels and produces two outputs from one forward pass: the sleep stage of
+    every 30-second epoch, and a per-epoch respiratory-event label. A direct cardiorespiratory path
+    carries breathing effort to the respiratory decision, bypassing the staging objective. On iSLEEPS
+    (99 patients, 92,560 epochs) under patient-independent ten-fold cross-validation, MM-Net stages
+    sleep at 0.739 accuracy (&kappa; 0.634) and detects respiratory events at 0.782 AUC with 2.76 M
+    trainable parameters.</p>
+    <p>We benchmark thirteen deep architectures retrained on this cohort and three applied zero-shot
+    from healthy sleep. Every retrained baseline lands between 0.613 and 0.720 accuracy, and six are
+    reimplemented here, each recovering its published accuracy to within 0.04, which places the limit
+    in the cohort itself.</p>
+    <div class="note">
+      <p><strong>The honest headline is not the staging number.</strong> Neural-only scores 0.741 and
+      the full model 0.739: the cardiorespiratory stream does not improve staging. What it adds is a
+      second clinical output, on a cohort where every architecture we tried sits near the same ceiling.</p>
+    </div>
   </div>
-  <figure class="panel">
-    <canvas id="scatter" height="360" aria-label="Per-patient results against clinical AHI"></canvas>
-    <p class="cap" id="scatterCap"></p>
-  </figure>
 </section>
 
-<section>
-  <h2>Thirteen architectures on the same folds</h2>
-  <p>Every model retrained on this cohort, plus three applied zero-shot from healthy sleep. Click a
-  column to sort. The healthy column, where present, is each model&rsquo;s accuracy on healthy
-  sleep under the same protocol, which is what makes the drop legible.</p>
-  <div class="scroll panel">
-    <table id="bench">
-      <thead><tr>
-        <th data-k="model">Model <span class="ar">&#9662;</span></th>
-        <th data-k="channels">Input</th>
-        <th data-k="params">Params</th>
-        <th data-k="healthy" class="num">Healthy</th>
-        <th data-k="acc" class="num">Accuracy</th>
-        <th data-k="mf1" class="num">Macro-F1</th>
-        <th data-k="kappa" class="num">&kappa;</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
-  </div>
-  <p class="cap">MM-Net rows are highlighted. Sorting is stable, so the grouping survives a sort on a
-  column with ties.</p>
-</section>
-
-<section>
-  <h2>Where the staging errors are</h2>
-  <div class="grid2">
-    <figure class="panel">
-      <h3>Confusion, row-normalised</h3>
-      <canvas id="confusion" height="260" aria-label="Row-normalised confusion matrix"></canvas>
-      <p class="cap">N1 is the hard class everywhere in sleep staging, and it is harder here.</p>
+<!-- ============================= ablation ============================= -->
+<section class="sec-rule">
+  <div class="wrap">
+    <h2>Each stream serves its own physiology</h2>
+    <div class="narrow justify">
+      <p>Removing one modality and retraining, nine times over. The pattern is a double dissociation:
+      deleting the neural stream costs staging and leaves breathing intact; deleting the
+      cardiorespiratory stream does the reverse. <em>p</em> is Wilcoxon on ten fold-means,
+      Holm-corrected within each metric.</p>
+    </div>
+    <figure class="panel" style="margin-top:1.4rem">
+      <canvas id="ablation" height="300" aria-label="Modality ablation"></canvas>
+      <p class="cap">Bars are the change from the full model when one modality is removed. Filled bars
+      clear <em>p</em> = 0.05; the floor at this sample size is 0.018.</p>
     </figure>
-    <div class="panel">
-      <h3>Per-class F1</h3>
-      <div id="f1"></div>
-      <h3 style="margin-top:1.3rem">By breathing severity</h3>
-      <div id="sev"></div>
-      <p class="cap">Accuracy falls as sleep-disordered breathing worsens, which is the cohort
-      getting harder rather than the model failing on a subgroup.</p>
+  </div>
+</section>
+
+<!-- ============================= live demo ============================= -->
+<section class="sec-rule" id="demo">
+  <div class="wrap">
+    <h2>Run the model in your browser</h2>
+    <div class="narrow justify">
+      <p>The released checkpoint, executing here, on a patient it never saw during training. Nothing
+      is fetched from a server once the files load: the weights run on your machine and the hypnogram
+      is computed while you watch, then checked against what PyTorch produced for the same patient.</p>
+      <div class="note">
+        <p><strong>What runs and what does not.</strong> Your browser runs MM-Net itself, all 2.76&nbsp;M
+        parameters. It does not run the feature extraction or the frozen LaBraM encoder that produce the
+        388-dimensional neural vector, because LaBraM is far too large to ship to a browser. The inputs
+        are pre-extracted. So this shows the published weights reproducing the published result, not the
+        whole pipeline running client-side.</p>
+      </div>
+    </div>
+    <div class="ctl">
+      <button class="seg" id="runBtn" style="font-weight:600">Load and run &nbsp;&middot;&nbsp; 18 MB</button>
+      <span class="sub" id="runStatus">fold 0 checkpoint &middot; patient SN76 &middot; 678 epochs</span>
+    </div>
+    <figure class="panel" id="livePanel" hidden>
+      <canvas id="live" height="250" aria-label="Hypnogram computed live in the browser"></canvas>
+      <div id="liveStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin-top:1.1rem"></div>
+      <p class="cap" id="liveCap"></p>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================= per-patient ============================= -->
+<section class="sec-rule">
+  <div class="wrap">
+    <h2>Ninety-nine patients, one point each</h2>
+    <div class="narrow justify">
+      <p>Every held-out patient from the ten folds. Staging accuracy against the clinical
+      apnea&ndash;hypopnea index, coloured by AASM severity band. The model was never given the AHI.</p>
+    </div>
+    <div class="ctl">
+      <label class="sub" for="yaxis">Vertical axis</label>
+      <select id="yaxis">
+        <option value="acc">Staging accuracy</option>
+        <option value="kappa">Cohen&rsquo;s &kappa;</option>
+        <option value="burden">Predicted event burden</option>
+      </select>
+      <button class="seg" id="togMontage" aria-pressed="false">Mark incomplete montage</button>
+    </div>
+    <figure class="panel">
+      <canvas id="scatter" height="360" aria-label="Per-patient results against clinical AHI"></canvas>
+      <p class="cap" id="scatterCap"></p>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================= benchmark ============================= -->
+<section class="sec-rule">
+  <div class="wrap">
+    <h2>Thirteen architectures on the same folds</h2>
+    <div class="narrow justify">
+      <p>Every model retrained on this cohort, plus three applied zero-shot from healthy sleep. Click
+      a column to sort. The healthy column is each model&rsquo;s accuracy on healthy sleep under the
+      same protocol, which is what makes the drop legible.</p>
+    </div>
+    <div class="scroll panel" style="margin-top:1.3rem">
+      <table id="bench">
+        <thead><tr>
+          <th data-k="model">Model <span class="ar">&#9662;</span></th>
+          <th data-k="channels">Input</th>
+          <th data-k="params">Params</th>
+          <th data-k="healthy" class="num">Healthy</th>
+          <th data-k="acc" class="num">Accuracy</th>
+          <th data-k="mf1" class="num">Macro-F1</th>
+          <th data-k="kappa" class="num">&kappa;</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 </section>
 
-<section>
-  <h2>The respiratory read-out</h2>
-  <div class="grid2">
-    <div class="panel">
-      <h3>By event type</h3>
-      <div id="etype"></div>
-      <p class="cap">Central and obstructive apneas are detected far better than hypopneas, which
-      is what the physiology predicts: an apnea is a larger, cleaner signal.</p>
+<!-- ============================= errors ============================= -->
+<section class="sec-rule">
+  <div class="wrap">
+    <h2>Where the errors are</h2>
+    <div class="grid2">
+      <figure class="panel">
+        <h3>Confusion, row-normalised</h3>
+        <canvas id="confusion" height="260" aria-label="Row-normalised confusion matrix"></canvas>
+        <p class="cap">N1 is the hard class everywhere in sleep staging, and it is harder here.</p>
+      </figure>
+      <div class="panel">
+        <h3>Per-class F1</h3>
+        <div id="f1"></div>
+        <h3 style="margin-top:1.3rem">By breathing severity</h3>
+        <div id="sev"></div>
+        <p class="cap">Accuracy falls as sleep-disordered breathing worsens, which is the cohort
+        getting harder rather than the model failing on a subgroup.</p>
+      </div>
     </div>
-    <div class="panel">
-      <h3>Against clinical AHI</h3>
-      <p class="sub" style="margin:.4rem 0 0">Per-patient predicted burden correlates with the
-      independently measured apnea&ndash;hypopnea index.</p>
-      <p style="font-family:'Source Serif 4',serif;font-size:2rem;font-weight:600;margin:.6rem 0 0">
-        &rho; = <span id="rho"></span></p>
-      <p class="sub" id="rhoSub"></p>
-      <div class="note" style="margin-top:1.1rem">
-        <p>This is a research-grade burden estimate, not a scoring-grade detector. At the 0.5
-        threshold the model flags roughly a third of epochs and recovers about half the events.
-        It is useful for triage, not for replacing a technician.</p>
+    <div class="grid2" style="margin-top:1.3rem">
+      <div class="panel">
+        <h3>Respiratory AUC by event type</h3>
+        <div id="etype"></div>
+        <p class="cap">Central and obstructive apneas are detected far better than hypopneas, which
+        is what the physiology predicts: an apnea is a larger, cleaner signal.</p>
+      </div>
+      <div class="panel">
+        <h3>Against clinical AHI</h3>
+        <p class="sub" style="margin:.4rem 0 0">Per-patient predicted burden against the
+        independently measured apnea&ndash;hypopnea index.</p>
+        <p style="font-family:'Noto Serif',serif;font-size:2rem;font-weight:600;margin:.6rem 0 0">
+          &rho; = <span id="rho"></span></p>
+        <p class="sub" id="rhoSub"></p>
+        <div class="note" style="margin-top:1.1rem">
+          <p>A research-grade burden estimate, not a scoring-grade detector. At the 0.5 threshold the
+          model flags about a third of epochs and recovers about half the events. Useful for triage,
+          not for replacing a technician.</p>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<section>
-  <h2>Run the model in your browser</h2>
-  <p>The released checkpoint, executing here, on a patient it never saw during training.
-  Nothing is fetched from a server once the files load: the weights run on your machine and the
-  hypnogram below is computed while you watch.</p>
-  <div class="note">
-    <p><strong>What runs and what does not.</strong> Your browser runs MM-Net itself, all 2.76&nbsp;M
-    parameters. It does not run the feature extraction or the frozen LaBraM encoder that produce the
-    388-dimensional neural vector, because LaBraM is far too large to ship to a browser. The inputs
-    below are pre-extracted. So this demonstrates that the published weights reproduce the published
-    result, not that the whole pipeline runs client-side.</p>
+<!-- ============================= checkpoints ============================= -->
+<section class="sec-rule">
+  <div class="wrap">
+    <h2>Checkpoints</h2>
+    <div class="narrow justify">
+      <p>Per-fold weights for the reported configuration, seed 42. Each file carries its own config,
+      the test-subject list for that fold, the scores it achieved, and the parameter count, so a
+      checkpoint can be matched to the row it produced without trusting the filename.</p>
+    </div>
+    <div class="scroll panel" style="margin-top:1.3rem">
+      <table id="ckpt">
+        <thead><tr><th>File</th><th class="num">Accuracy</th><th class="num">&kappa;</th><th class="num">AUC</th><th class="num">Size</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="cap" id="ckptCap"></p>
+    <div class="narrow">
+      <div class="note">
+        <p><strong>Loading one.</strong> <code>torch.load(path, weights_only=False)</code> gives a dict
+        with <code>state_dict</code>, <code>config</code>, <code>fold</code>, <code>test_subjects</code>
+        and <code>scores</code>. Build the network with <code>MMFeatureNet(**config)</code> from
+        <code>model/mmnet_core.py</code>, swap <code>card_enc</code> for <code>CardioCNN</code>, then
+        load. A checkpoint reproduces its fold to within GPU non-determinism, which is why each stores
+        the scores it actually achieved.</p>
+      </div>
+    </div>
   </div>
-  <div class="ctl">
-    <button class="seg" id="runBtn" style="font-weight:600">Load and run &nbsp;&middot;&nbsp; 18 MB</button>
-    <span class="sub" id="runStatus">fold 0 checkpoint &middot; patient SN76 &middot; 678 epochs</span>
-  </div>
-  <figure class="panel" id="livePanel" hidden>
-    <canvas id="live" height="250" aria-label="Hypnogram computed live in the browser"></canvas>
-    <div id="liveStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-top:1.1rem"></div>
-    <p class="cap" id="liveCap"></p>
-  </figure>
 </section>
 
-<section>
-  <h2>Checkpoints</h2>
-  <p>Per-fold weights for the reported configuration, seed 42. Each file carries its own config,
-  the test-subject list for that fold, the scores it achieved, and the parameter count, so a
-  checkpoint can be matched to the row it produced without trusting the filename.</p>
-  <div class="scroll panel">
-    <table id="ckpt">
-      <thead><tr><th>File</th><th class="num">Accuracy</th><th class="num">&kappa;</th><th class="num">AUC</th><th class="num">Size</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </div>
-  <p class="cap" id="ckptCap"></p>
-  <div class="note">
-    <p><strong>Loading one.</strong> <code>torch.load(path, weights_only=False)</code> gives a dict with
-    <code>state_dict</code>, <code>config</code>, <code>fold</code>, <code>test_subjects</code> and
-    <code>scores</code>. Build the network with <code>MMFeatureNet(**config)</code> from
-    <code>model/mmnet_core.py</code>, swap <code>card_enc</code> for <code>CardioCNN</code>, then load.
-    A checkpoint reproduces its fold to within GPU non-determinism, which is why each stores the
-    scores it actually achieved.</p>
+<!-- ============================= bibtex ============================= -->
+<section class="sec-rule" id="bibtex">
+  <div class="wrap narrow">
+    <h2>BibTeX</h2>
+    <pre><code>@article{suva2026mmnet,
+  title   = {Multimodal Multi-Task Sleep Staging and Respiratory-Event
+             Detection in Subacute Ischemic Stroke},
+  author  = {Suva, Md Wahiduzzaman and Abha, Esm-e Moula Chowdhury and
+             Sajin, Md Imtiaj Alam and Mobin, Md Iftekharul},
+  journal = {IEEE Access},
+  year    = {2026},
+  note    = {Under review}
+}</code></pre>
+    <p class="cap">The entry will carry the volume, pages and DOI once the paper is published.</p>
   </div>
 </section>
 
 <footer>
-  <div class="wrap" style="padding:0">
-    <p>Md Wahiduzzaman Suva, Esm-e Moula Chowdhury Abha, Md Imtiaj Alam Sajin, Md Iftekharul Mobin
-    &middot; American International University-Bangladesh</p>
-    <p>Every figure on this page is drawn from the result files in the repository, so the page and
-    the paper cannot drift apart. The manuscript is under review and is not hosted here.</p>
+  <div class="wrap">
+    <p>Every figure on this page is drawn from the result files in the repository, and the benchmark
+    is parsed from the manuscript source, so the page and the paper cannot drift apart.</p>
+    <p>The manuscript is under review and is not hosted here. The iSLEEPS corpus is published
+    separately and is not redistributed.</p>
   </div>
 </footer>
-</div>
 
-<script>
-const $ = s => document.querySelector(s);
-const fmt = (v, n = 3) => v === null || v === undefined ? '—' : Number(v).toFixed(n);
-const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-
-function dpi(cv, h) {
-  const r = window.devicePixelRatio || 1, w = cv.parentElement.clientWidth - 2;
-  cv.width = w * r; cv.height = h * r; cv.style.height = h + 'px';
-  const c = cv.getContext('2d'); c.setTransform(r, 0, 0, r, 0, 0); return [c, w, h];
-}
-
-let DATA = {}, PATIENTS = [], BENCH = [], CKPT = [];
-
-/* ---------- headline ---------- */
-function stats() {
-  const h = DATA.headline;
-  $('#stats').innerHTML = [
-    ['Staging accuracy', h.acc.toFixed(3), '± 0.020'],
-    ['Cohen’s κ', h.kappa.toFixed(3), '± 0.024'],
-    ['Respiratory AUC', h.auc.toFixed(3), '± 0.038'],
-    ['Parameters', (h.params / 1e6).toFixed(2) + ' M', 'trainable'],
-  ].map(([k, v, s]) => `<div><p class="k">${k}</p><p class="v">${v}</p><p class="s">${s}</p></div>`).join('');
-}
-
-/* ---------- ablation ---------- */
-const ABL_LABEL = {
-  '-EEG': 'EEG (neural)', '-EOG': 'EOG (ocular)', '-EMG': 'EMG (muscle)', '-SpO2': 'SpO₂',
-  '-effort': 'respiratory effort', '-pulse/HRV': 'pulse / HRV', '-ECG': 'ECG',
-  '-airflow': 'airflow', '-all cardio': 'all cardiorespiratory'
-};
-const ABL_ORDER = ['-EEG', '-EOG', '-EMG', '-SpO2', '-effort', '-pulse/HRV', '-ECG', '-airflow', '-all cardio'];
-
-function ablation() {
-  const cv = $('#ablation'); const [c, W] = dpi(cv, 300);
-  const rows = ABL_ORDER.map(k => DATA.ablation.find(r => r.condition === k)).filter(Boolean);
-  const L = 160, R = 16, T = 26, gap = 8;
-  const half = (W - L - R - gap) / 2;
-  const rowH = (300 - T - 18) / rows.length;
-  const maxA = 0.075, maxU = 0.14;
-  c.clearRect(0, 0, W, 300);
-  c.font = '600 10px "IBM Plex Sans",sans-serif'; c.fillStyle = css('--slate');
-  c.textAlign = 'center';
-  c.fillText('STAGING ACCURACY', L + half / 2, 12);
-  c.fillText('RESPIRATORY AUC', L + half + gap + half / 2, 12);
-
-  rows.forEach((r, i) => {
-    const y = T + i * rowH, h = Math.min(rowH * .56, 16);
-    c.textAlign = 'right'; c.font = '400 11.5px "IBM Plex Sans",sans-serif';
-    c.fillStyle = css('--ink-2');
-    c.fillText(ABL_LABEL[r.condition], L - 10, y + h * .8);
-    [[r.d_acc, r.p_acc, maxA, L, css('--blue')],
-     [r.d_auc, r.p_auc, maxU, L + half + gap, css('--red')]].forEach(([d, p, mx, x0, col]) => {
-      const zero = x0 + half * .72;
-      c.strokeStyle = css('--rule'); c.lineWidth = 1;
-      c.beginPath(); c.moveTo(zero, y - 2); c.lineTo(zero, y + h + 2); c.stroke();
-      const w = Math.max(1, Math.abs(d) / mx * (half * .68));
-      const sig = p < 0.05;
-      c.fillStyle = col; c.globalAlpha = sig ? 1 : .28;
-      c.fillRect(d < 0 ? zero - w : zero, y, w, h);
-      c.globalAlpha = 1;
-      c.textAlign = 'left'; c.font = (sig ? '600 ' : '400 ') + '10.5px "IBM Plex Mono",monospace';
-      c.fillStyle = sig ? col : css('--ink-3');
-      c.fillText((d > 0 ? '+' : '') + d.toFixed(3) + (sig ? '  p ' + p.toFixed(3) : ''),
-                 zero + 6 + (d < 0 ? 0 : w), y + h * .8);
-    });
-  });
-}
-
-/* ---------- one night ---------- */
-let NIGHTS = {}, nightIds = [], nightAt = 0;
-const STAGES = ['W', 'N1', 'N2', 'N3', 'R'];
-const LADDER = { 0: 4, 1: 2, 2: 1, 3: 0, 4: 3 };          // W top, N3 bottom, R above N3
-const ROWS = ['N3', 'N2', 'N1', 'R', 'W'];
-
-function hypno() {
-  const id = nightIds[nightAt];
-  const n = NIGHTS[id];
-  if (!n) return;
-  const cv = $('#hypno'); const [c, W, H] = dpi(cv, 380);
-  const L = 34, R = 12, T = 16, gap = 14;
-  const nEp = n.ref.length, hours = nEp * 30 / 3600;
-  const panelH = 96, apH = 74;
-  const X = i => L + i / nEp * (W - L - R);
-  const rowY = (top, s) => top + (4 - LADDER[s]) * (panelH - 16) / 4 + 8;
-
-  c.clearRect(0, 0, W, H);
-  c.font = '400 9.5px "IBM Plex Mono",monospace';
-
-  function trace(top, seq, label, col, diffAgainst) {
-    c.fillStyle = css('--slate'); c.textAlign = 'left';
-    c.font = '600 10px "IBM Plex Sans",sans-serif';
-    c.fillText(label, L, top - 3);
-    c.font = '400 9.5px "IBM Plex Mono",monospace';
-    c.textAlign = 'right'; c.fillStyle = css('--ink-3');
-    ROWS.forEach((s, k) => {
-      const y = top + k * (panelH - 16) / 4 + 8;
-      c.fillText(s, L - 6, y + 3);
-      c.strokeStyle = css('--rule-soft'); c.lineWidth = 1;
-      c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke();
-    });
-    if (diffAgainst) {                                   // tint the disagreements
-      c.fillStyle = css('--red'); c.globalAlpha = .16;
-      for (let i = 0; i < nEp; i++) if (seq[i] !== diffAgainst[i]) c.fillRect(X(i), top + 4, Math.max(1, (W - L - R) / nEp), panelH - 8);
-      c.globalAlpha = 1;
-    }
-    c.strokeStyle = col; c.lineWidth = 1.15; c.beginPath();
-    for (let i = 0; i < nEp; i++) {
-      const y = rowY(top, seq[i]), x = X(i), x2 = X(i + 1);
-      if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-      c.lineTo(x2, y);
-    }
-    c.stroke();
-    c.strokeStyle = css('--purple'); c.lineWidth = 2; c.beginPath();   // REM highlighted
-    let open = false;
-    for (let i = 0; i < nEp; i++) {
-      if (seq[i] === 4) { const y = rowY(top, 4); if (!open) { c.moveTo(X(i), y); open = true; } c.lineTo(X(i + 1), y); }
-      else open = false;
-    }
-    c.stroke();
-  }
-
-  trace(T, n.ref, 'REFERENCE  ·  technician', css('--amber'), null);
-  trace(T + panelH + gap, n.pred, 'PREDICTED  ·  MM-Net', css('--blue'), n.ref);
-
-  // respiratory probability
-  const top = T + 2 * (panelH + gap);
-  c.fillStyle = css('--slate'); c.textAlign = 'left';
-  c.font = '600 10px "IBM Plex Sans",sans-serif';
-  c.fillText('RESPIRATORY EVENT PROBABILITY', L, top - 3);
-  c.strokeStyle = css('--rule-soft'); c.beginPath();
-  c.moveTo(L, top + apH - 14); c.lineTo(W - R, top + apH - 14); c.stroke();
-  c.fillStyle = css('--green'); c.globalAlpha = .5; c.beginPath();
-  c.moveTo(L, top + apH - 14);
-  for (let i = 0; i < nEp; i++) c.lineTo(X(i), top + apH - 14 - n.apnea[i] * (apH - 22));
-  c.lineTo(W - R, top + apH - 14); c.closePath(); c.fill(); c.globalAlpha = 1;
-  c.fillStyle = css('--red');                                  // scored events
-  for (let i = 0; i < nEp; i++) if (n.apnea_true[i]) c.fillRect(X(i), top + apH - 11, Math.max(1, (W - L - R) / nEp), 6);
-  c.fillStyle = css('--ink-3'); c.font = '400 9.5px "IBM Plex Mono",monospace';
-  c.textAlign = 'right'; c.fillText('1.0', L - 6, top + 8);
-  c.fillText('0', L - 6, top + apH - 11);
-  c.textAlign = 'left'; c.fillText('scored events', L, top + apH + 10);
-
-  // hours axis
-  c.textAlign = 'center'; c.fillStyle = css('--ink-3');
-  for (let h = 0; h <= Math.floor(hours); h += 2) c.fillText(h + 'h', X(h * 120), H - 4);
-
-  const ev = n.apnea_true.reduce((a, b) => a + b, 0);
-  $('#hypnoCap').textContent =
-    `${id} · ${nEp} epochs (${hours.toFixed(1)} h) · staging accuracy ${n.acc.toFixed(3)}, ` +
-    `κ ${n.kappa.toFixed(3)} · ${ev} epochs carry a scored respiratory event ` +
-    `(${(ev / nEp * 100).toFixed(0)}% of the night).`;
-  $('#nightMeta').textContent = `${nightAt + 1} of ${nightIds.length}`;
-}
-
-function nightSetup() {
-  nightIds = Object.keys(NIGHTS).sort((a, b) => NIGHTS[b].acc - NIGHTS[a].acc);
-  $('#night').innerHTML = nightIds.map((id, i) =>
-    `<option value="${i}">${id} — accuracy ${NIGHTS[id].acc.toFixed(3)}</option>`).join('');
-  const go = d => { nightAt = (nightAt + d + nightIds.length) % nightIds.length; $('#night').value = nightAt; hypno(); };
-  $('#prevN').onclick = () => go(-1);
-  $('#nextN').onclick = () => go(1);
-  $('#night').onchange = e => { nightAt = +e.target.value; hypno(); };
-  hypno();
-}
-
-/* ---------- per-patient scatter ---------- */
-const SEV_COL = { Normal: '--green', Mild: '--blue', Moderate: '--amber', Severe: '--red' };
-let showMontage = false;
-
-function scatter() {
-  const cv = $('#scatter'); const [c, W, H] = dpi(cv, 360);
-  const key = $('#yaxis').value;
-  const pts = PATIENTS.filter(p => p.ahi !== null && p.ahi !== undefined);
-  const L = 52, R = 14, T = 14, B = 44;
-  const xs = pts.map(p => p.ahi), ys = pts.map(p => p[key]);
-  const x0 = 0, x1 = Math.max(...xs) * 1.05;
-  const y0 = Math.min(...ys) * 0.97, y1 = Math.max(...ys) * 1.02;
-  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R);
-  const Y = v => H - B - (v - y0) / (y1 - y0) * (H - T - B);
-  c.clearRect(0, 0, W, H);
-  c.strokeStyle = css('--rule-soft'); c.lineWidth = 1;
-  c.font = '400 10.5px "IBM Plex Mono",monospace'; c.fillStyle = css('--ink-3');
-  for (let i = 0; i <= 4; i++) {
-    const v = y0 + (y1 - y0) * i / 4, y = Y(v);
-    c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke();
-    c.textAlign = 'right'; c.fillText(v.toFixed(2), L - 8, y + 3.5);
-  }
-  [0, 15, 30, 60, 90].filter(v => v <= x1).forEach(v => {
-    c.textAlign = 'center'; c.fillText(v, X(v), H - B + 16);
-  });
-  c.font = '400 11px "IBM Plex Sans",sans-serif';
-  c.fillText('clinical apnea–hypopnea index (events/h)', (L + W - R) / 2, H - 10);
-
-  pts.forEach(p => {
-    const col = css(SEV_COL[p.severity] || '--slate');
-    c.beginPath(); c.arc(X(p.ahi), Y(p[key]), 4.6, 0, 7);
-    c.fillStyle = col; c.globalAlpha = .78; c.fill(); c.globalAlpha = 1;
-    if (showMontage && p.complete === false) {
-      c.lineWidth = 2; c.strokeStyle = css('--ink'); c.stroke();
-    }
-  });
-  // legend
-  c.font = '400 10.5px "IBM Plex Sans",sans-serif'; c.textAlign = 'left';
-  let lx = L + 4;
-  Object.entries(SEV_COL).forEach(([k, v]) => {
-    c.beginPath(); c.arc(lx, T + 4, 4, 0, 7); c.fillStyle = css(v); c.fill();
-    c.fillStyle = css('--ink-3'); c.fillText(k, lx + 8, T + 7.5);
-    lx += c.measureText(k).width + 26;
-  });
-  const n = pts.length, inc = pts.filter(p => p.complete === false).length;
-  $('#scatterCap').textContent =
-    `${n} patients with a clinical AHI on record. ` +
-    (showMontage ? `${inc} with an incomplete cardiorespiratory montage are ringed. ` : '') +
-    `Spearman ρ = ${DATA.ahi.rho.toFixed(3)} between predicted burden and AHI over all ${DATA.ahi.n}.`;
-}
-
-/* ---------- benchmark ---------- */
-let sortK = null, sortDesc = true;
-function bench() {
-  const tb = $('#bench tbody');
-  let rows = BENCH.slice();
-  if (sortK) {
-    rows.sort((a, b) => {
-      const x = a[sortK], y = b[sortK];
-      if (x === null || x === undefined) return 1;
-      if (y === null || y === undefined) return -1;
-      return (typeof x === 'number' ? y - x : String(x).localeCompare(String(y))) * (sortDesc ? 1 : -1);
-    });
-    tb.innerHTML = rows.map(r => row(r)).join('');
-  } else {
-    let out = '', blk = null;
-    rows.forEach(r => {
-      if (r.block !== blk) { blk = r.block; out += `<tr class="blk"><td colspan="7">${blk}</td></tr>`; }
-      out += row(r);
-    });
-    tb.innerHTML = out;
-  }
-}
-const row = r => `<tr class="${r.ours ? 'ours' : ''}">
-  <td>${r.model}</td><td class="sub">${r.channels}</td><td class="num sub">${r.params}</td>
-  <td class="num">${fmt(r.healthy)}</td><td class="num">${fmt(r.acc)}</td>
-  <td class="num">${fmt(r.mf1)}</td><td class="num">${fmt(r.kappa)}</td></tr>`;
-
-/* ---------- confusion ---------- */
-function confusion() {
-  const cv = $('#confusion'); const [c, W] = dpi(cv, 260);
-  const S = ['W', 'N1', 'N2', 'N3', 'R'], M = DATA.confusion;
-  const P = 34, cell = Math.min((W - P - 10) / 5, (260 - P - 22) / 5);
-  c.clearRect(0, 0, W, 260);
-  c.font = '500 11px "IBM Plex Sans",sans-serif';
-  S.forEach((s, i) => {
-    c.fillStyle = css('--slate'); c.textAlign = 'center';
-    c.fillText(s, P + i * cell + cell / 2, P - 10);
-    c.textAlign = 'right'; c.fillText(s, P - 8, P + i * cell + cell / 2 + 4);
-  });
-  M.forEach((r, i) => r.forEach((v, j) => {
-    c.fillStyle = css('--blue'); c.globalAlpha = Math.pow(v, .62);
-    c.fillRect(P + j * cell, P + i * cell, cell - 2, cell - 2); c.globalAlpha = 1;
-    c.fillStyle = v > .45 ? '#fff' : css('--ink-2');
-    c.font = '500 10.5px "IBM Plex Mono",monospace'; c.textAlign = 'center';
-    c.fillText(v.toFixed(2), P + j * cell + cell / 2 - 1, P + i * cell + cell / 2 + 3.5);
-  }));
-  c.fillStyle = css('--ink-3'); c.font = '400 10.5px "IBM Plex Sans",sans-serif';
-  c.textAlign = 'left'; c.fillText('predicted →', P, 260 - 6);
-}
-
-/* ---------- small bar lists ---------- */
-function bars(el, items, col, fmtv) {
-  const mx = Math.max(...items.map(i => i[1]));
-  el.innerHTML = items.map(([k, v, sub]) => `
-    <div style="display:grid;grid-template-columns:4.6rem 1fr 3.4rem;gap:.5rem;align-items:center;margin:.32rem 0">
-      <span class="sub" style="color:var(--ink-2)">${k}</span>
-      <span style="background:var(--rule-soft);height:8px;border-radius:2px;overflow:hidden">
-        <span style="display:block;height:100%;width:${(v / mx * 100).toFixed(1)}%;background:var(--${col})"></span></span>
-      <span class="mono num" style="font-size:.8rem;text-align:right">${fmtv(v)}${sub || ''}</span>
-    </div>`).join('');
-}
-
-/* ---------- checkpoints ---------- */
-function ckpt() {
-  const tb = $('#ckpt tbody');
-  if (!CKPT.length) {
-    tb.innerHTML = `<tr><td colspan="5" class="sub">Checkpoint manifest not published yet.</td></tr>`;
-    $('#ckptCap').textContent = 'Weights are attached to the GitHub release rather than committed, so cloning the repository stays light.';
-    return;
-  }
-  tb.innerHTML = CKPT.map(f => `<tr>
-    <td class="mono">${f.file}</td><td class="num">${fmt(f.acc)}</td>
-    <td class="num">${fmt(f.kappa)}</td><td class="num">${fmt(f.auc)}</td>
-    <td class="num sub">${f.mb} MB</td></tr>`).join('');
-  const n = CKPT.length;
-  $('#ckptCap').textContent = `${n} of 10 folds published, ${CKPT.reduce((a, b) => a + b.mb, 0).toFixed(0)} MB total. `
-    + 'Weights are attached to the GitHub release rather than committed, so cloning the repository stays light.';
-}
-
-/* ---------- live inference ---------- */
-const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
-
-function f16to32(buf) {                       // IEEE half -> float, no Float16Array needed
-  const u = new Uint16Array(buf), out = new Float32Array(u.length);
-  for (let i = 0; i < u.length; i++) {
-    const h = u[i], s = (h & 0x8000) >> 15, e = (h & 0x7c00) >> 10, f = h & 0x03ff;
-    out[i] = e === 0 ? (s ? -1 : 1) * Math.pow(2, -14) * (f / 1024)
-      : e === 0x1f ? (f ? NaN : (s ? -Infinity : Infinity))
-      : (s ? -1 : 1) * Math.pow(2, e - 15) * (1 + f / 1024);
-  }
-  return out;
-}
-
-function viterbi(logp, A, pi, K) {            // the same decode the paper applies
-  const T = logp.length / K;
-  const dp = new Float64Array(T * K), bp = new Int32Array(T * K);
-  for (let k = 0; k < K; k++) dp[k] = pi[k] + logp[k];
-  for (let t = 1; t < T; t++) for (let k = 0; k < K; k++) {
-    let best = -Infinity, arg = 0;
-    for (let j = 0; j < K; j++) { const v = dp[(t - 1) * K + j] + A[j][k]; if (v > best) { best = v; arg = j; } }
-    dp[t * K + k] = best + logp[t * K + k]; bp[t * K + k] = arg;
-  }
-  const path = new Int32Array(T);
-  let best = -Infinity;
-  for (let k = 0; k < K; k++) if (dp[(T - 1) * K + k] > best) { best = dp[(T - 1) * K + k]; path[T - 1] = k; }
-  for (let t = T - 2; t >= 0; t--) path[t] = bp[(t + 1) * K + path[t + 1]];
-  return path;
-}
-
-const script = src => new Promise((ok, no) => {
-  const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no;
-  document.head.appendChild(s);
-});
-
-let LIVE = null;
-async function runLive() {
-  const btn = $('#runBtn'), st = $('#runStatus');
-  btn.disabled = true;
-  const say = m => { st.textContent = m; };
-  try {
-    say('loading runtime…');
-    if (!window.ort) { await script(ORT + 'ort.min.js'); ort.env.wasm.wasmPaths = ORT; }
-    say('loading weights and inputs…');
-    const [meta, eBuf, cBuf] = await Promise.all([
-      fetch('data/demo_meta.json').then(r => r.json()),
-      fetch('data/demo_feeg.f16').then(r => r.arrayBuffer()),
-      fetch('data/demo_fcard.f16').then(r => r.arrayBuffer()),
-    ]);
-    const sess = await ort.InferenceSession.create('data/mmnet.onnx', { executionProviders: ['wasm'] });
-    const { window: L, n_eeg: NE, n_card: NC_, n_epochs: N } = meta;
-    const fe = f16to32(eBuf), fc = f16to32(cBuf);
-    const nWin = fe.length / (L * NE);
-
-    const t0 = performance.now();
-    const stage = new Float32Array(nWin * L * 5), apnea = new Float32Array(nWin * L);
-    const B = 8;
-    for (let w = 0; w < nWin; w += B) {
-      const b = Math.min(B, nWin - w);
-      say(`running MM-Net… ${Math.round(w / nWin * 100)}%`);
-      const out = await sess.run({
-        feeg: new ort.Tensor('float32', fe.subarray(w * L * NE, (w + b) * L * NE), [b, L, NE]),
-        fcard: new ort.Tensor('float32', fc.subarray(w * L * NC_, (w + b) * L * NC_), [b, L, NC_]),
-      });
-      const sl = out.stage_logits.data, al = out.apnea_logit.data;
-      for (let i = 0; i < b * L; i++) {
-        let mx = -Infinity;
-        for (let k = 0; k < 5; k++) mx = Math.max(mx, sl[i * 5 + k]);
-        let sum = 0;
-        for (let k = 0; k < 5; k++) { const e = Math.exp(sl[i * 5 + k] - mx); stage[(w * L + i) * 5 + k] = e; sum += e; }
-        for (let k = 0; k < 5; k++) stage[(w * L + i) * 5 + k] /= sum;
-        apnea[w * L + i] = 1 / (1 + Math.exp(-al[i]));
-      }
-      await new Promise(r => setTimeout(r));            // let the status paint
-    }
-    const secs = (performance.now() - t0) / 1000;
-
-    const logp = new Float64Array(N * 5);
-    for (let i = 0; i < N * 5; i++) logp[i] = Math.log(stage[i] + 1e-8);
-    const pred = viterbi(logp, meta.A_log, meta.pi_log, 5);
-
-    const ref = meta.reference_stage, exp = meta.expected_pred;
-    let acc = 0, agree = 0;
-    for (let i = 0; i < N; i++) { if (pred[i] === ref[i]) acc++; if (pred[i] === exp[i]) agree++; }
-    acc /= N; agree /= N;
-    let maxd = 0;
-    for (let i = 0; i < N; i++) maxd = Math.max(maxd, Math.abs(apnea[i] - meta.expected_apnea[i]));
-
-    LIVE = { meta, pred, apnea, N, acc, agree, maxd, secs };
-    $('#livePanel').hidden = false;
-    drawLive();
-    say(`done in ${secs.toFixed(1)} s`);
-    btn.textContent = 'Run again';
-    btn.disabled = false;
-  } catch (e) {
-    say('could not run here: ' + (e && e.message ? e.message : e));
-    btn.disabled = false;
-  }
-}
-
-function drawLive() {
-  if (!LIVE) return;
-  const { meta, pred, apnea, N, acc, agree, maxd, secs } = LIVE;
-  const cv = $('#live'); const [c, W, H] = dpi(cv, 250);
-  const L = 34, R = 12, T = 16, panelH = 88, gap = 14;
-  const X = i => L + i / N * (W - L - R);
-  c.clearRect(0, 0, W, H);
-  const trace = (top, seq, label, col, diff) => {
-    c.fillStyle = css('--slate'); c.textAlign = 'left';
-    c.font = '600 10px "IBM Plex Sans",sans-serif'; c.fillText(label, L, top - 3);
-    c.font = '400 9.5px "IBM Plex Mono",monospace'; c.textAlign = 'right'; c.fillStyle = css('--ink-3');
-    ROWS.forEach((s, k) => {
-      const y = top + k * (panelH - 16) / 4 + 8;
-      c.fillText(s, L - 6, y + 3);
-      c.strokeStyle = css('--rule-soft'); c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke();
-    });
-    if (diff) {
-      c.fillStyle = css('--red'); c.globalAlpha = .16;
-      for (let i = 0; i < N; i++) if (seq[i] !== diff[i]) c.fillRect(X(i), top + 4, Math.max(1, (W - L - R) / N), panelH - 8);
-      c.globalAlpha = 1;
-    }
-    c.strokeStyle = col; c.lineWidth = 1.15; c.beginPath();
-    for (let i = 0; i < N; i++) {
-      const y = top + (4 - LADDER[seq[i]]) * (panelH - 16) / 4 + 8;
-      if (i === 0) c.moveTo(X(i), y); else c.lineTo(X(i), y);
-      c.lineTo(X(i + 1), y);
-    }
-    c.stroke();
-  };
-  trace(T, meta.reference_stage, 'REFERENCE  ·  technician', css('--amber'), null);
-  trace(T + panelH + gap, Array.from(pred), 'COMPUTED IN YOUR BROWSER', css('--blue'), meta.reference_stage);
-
-  $('#liveStats').innerHTML = [
-    ['Accuracy here', acc.toFixed(4), 'against the technician'],
-    ['Checkpoint says', meta.expected_acc.toFixed(4), 'same patient, PyTorch'],
-    ['Epochs identical', (agree * 100).toFixed(1) + '%', 'browser vs PyTorch'],
-    ['Max Δ apnea', maxd.toExponential(1), 'probability drift'],
-    ['Time', secs.toFixed(1) + ' s', `${N} epochs`],
-  ].map(([k, v, s]) => `<div style="background:var(--surface);padding:.8rem .9rem">
-    <p class="k" style="font-size:.68rem;letter-spacing:.05em;color:var(--slate);margin:0">${k}</p>
-    <p style="font-family:'Source Serif 4',serif;font-size:1.35rem;font-weight:600;margin:.15rem 0 0;font-variant-numeric:tabular-nums">${v}</p>
-    <p class="s" style="font-size:.72rem;color:var(--ink-3);margin:.1rem 0 0">${s}</p></div>`).join('');
-
-  $('#liveCap').textContent =
-    `${meta.subject}, held out of fold ${meta.fold}. The browser reproduces PyTorch on `
-    + `${(agree * 100).toFixed(1)}% of epochs; the rest are ties broken differently in float32 `
-    + `arithmetic. Inputs were shipped as float16, which the export measured at a maximum `
-    + `probability difference of 1.9e-4 and no change to any predicted stage.`;
-}
-
-/* ---------- boot ---------- */
-async function boot() {
-  const get = async p => { try { const r = await fetch(p); return r.ok ? await r.json() : null; } catch { return null; } };
-  DATA = await get('data/results.json') || {};
-  PATIENTS = await get('data/patients.json') || [];
-  BENCH = await get('data/benchmark.json') || [];
-  NIGHTS = await get('data/nights.json') || {};
-  const man = await get('data/checkpoints.json');
-  CKPT = man && man.folds ? man.folds : [];
-
-  if (!DATA.headline) { document.body.insertAdjacentHTML('afterbegin',
-    '<div class="wrap"><div class="note"><p>Result files did not load. If you are viewing this file directly from disk, serve the folder over HTTP instead: <code>python -m http.server</code>.</p></div></div>'); return; }
-
-  stats(); ablation(); scatter(); bench(); confusion(); ckpt();
-  if (Object.keys(NIGHTS).length) nightSetup();
-  bars($('#f1'), Object.entries(DATA.per_class_f1).map(([k, v]) => [k, v, ` (${(DATA.support[k] / 1000).toFixed(1)}k)`]), 'blue', v => v.toFixed(3));
-  bars($('#sev'), Object.entries(DATA.severity).map(([k, v]) => [k, v.acc, ` (n=${v.n})`]), 'amber', v => v.toFixed(3));
-  bars($('#etype'), Object.entries(DATA.event_type).filter(([, v]) => v.n_positive > 200)
-       .map(([k, v]) => [k, v.auc, ` (${v.n_positive})`]), 'green', v => v.toFixed(3));
-  $('#rho').textContent = DATA.ahi.rho.toFixed(3);
-  $('#rhoSub').textContent = `Spearman, n = ${DATA.ahi.n}, p = ${DATA.ahi.p.toExponential(1)}`;
-}
-
-document.querySelectorAll('#bench th[data-k]').forEach(th => th.addEventListener('click', () => {
-  const k = th.dataset.k;
-  if (sortK === k) { sortDesc = !sortDesc; } else { sortK = k; sortDesc = true; }
-  document.querySelectorAll('#bench th .ar').forEach(a => a.remove());
-  th.insertAdjacentHTML('beforeend', ` <span class="ar">${sortDesc ? '▾' : '▴'}</span>`);
-  bench();
-}));
-$('#runBtn').addEventListener('click', runLive);
-$('#yaxis').addEventListener('change', scatter);
-$('#togMontage').addEventListener('click', e => {
-  showMontage = !showMontage; e.target.setAttribute('aria-pressed', showMontage); scatter();
-});
-let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { ablation(); scatter(); confusion(); hypno(); drawLive(); }, 150); });
-matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { ablation(); scatter(); confusion(); hypno(); });
-boot();
-</script>
+<script src="app.js"></script>
 </body>
 </html>
