@@ -63,7 +63,8 @@ what this repository runs.
 LaBraM was pretrained at 200 Hz with a fixed 3000-sample input, so
 `build_labram_cache.py` resamples to 200 Hz and splits each epoch into two 15-second
 sub-windows that are encoded separately and mean-pooled. Feeding 100 Hz directly
-would be silent and wrong: every rhythm would present at half its frequency.
+would be silent and wrong: the encoder would read a 30-second window as 15, compressing time
+by a factor of two, so every rhythm would present at twice its frequency.
 
 ---
 
