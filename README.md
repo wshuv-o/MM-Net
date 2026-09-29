@@ -35,10 +35,12 @@ carries breathing effort to the respiratory head, bypassing the staging objectiv
 
 ```
 model/          mmnet_core.py, the network and the ten-fold engine
-foundation/     the experiments, the reimplemented baselines and the analyses
+foundation/     the experiments, the reimplemented baselines and the analyses;
+                foundation/analyses/ recomputes the derived statistics on CPU
 preprocessing/  EDF and annotation files to the cached feature tensors
 figures/        the seven figures and the scripts that draw them
-baselines/      the StagingSeqNet baseline, which carries its own dependencies
+baselines/      the StagingSeqNet baseline, which carries its own dependencies,
+                and the DeepSleepNet and CNN models used by the retrained rows
 results/        every result file the paper cites
 data/           empty; see "Data" below
 ```

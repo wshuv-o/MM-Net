@@ -10,7 +10,7 @@ Covers:
   confusion matrix          row-normalised, 5x5
   per-class F1              Wake N1 N2 N3 REM
   operating characteristics ROC and precision-recall, and precision at the
-                            sensitivity the referee asked about
+                            high-sensitivity operating points
   per-event-type AUC        needs event_labels.npz if present
   AHI correlation           per-patient burden vs clinical AHI (Spearman)
   staging by severity       accuracy within AASM AHI bands
@@ -64,7 +64,7 @@ def main():
                               ap=float(average_precision_score(at, asc)),
                               prevalence=float(at.mean()))
     prec, rec, _ = precision_recall_curve(at, asc)
-    # The referee's specific concern: precision at high sensitivity. Reported at
+    # Precision at high sensitivity. Reported at
     # several operating points rather than one, because a single point invites
     # the suspicion it was chosen after the fact.
     ops = {}
